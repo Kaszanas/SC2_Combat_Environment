@@ -1,0 +1,23 @@
+[project]
+name = "sc2-combat-detector"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Kaszanas", email = "34846245+Kaszanas@users.noreply.github.com" },
+]
+requires-python = ">=3.13"
+dependencies = ["pysc2_evolved", "typer>=0.15.3"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+pysc2_evolved = { path = "src/pysc2_evolved" }
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.2.0",
+    "ruff>=0.11.9",
+]

@@ -1,0 +1,3 @@
+[submodule "src/pysc2_evolved"]
+	path = src/pysc2_evolved
+	url = https://github.com/Kaszanas/pysc2_evolved
