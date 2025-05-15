@@ -5,6 +5,9 @@ from pysc2_evolved.lib.replay import sc2_replay_utils
 from pysc2_evolved.lib.replay.replay_observation_stream import ReplayObservationStream
 from s2clientprotocol import common_pb2
 from s2clientprotocol import sc2api_pb2 as sc_pb
+
+from sc2_combat_detector.proto import observation_collection_pb2 as obs_collection_pb
+
 import collections
 
 
@@ -166,18 +169,18 @@ def run_observation_stream(
         )
 
 
-class Observation:
-    def __init__(
-        self,
-        player1: sc_pb.ResponseObservation,
-        player2: sc_pb.ResponseObservation,
-        actions,
-        force_action_delay=0,
-    ):
-        self.player1 = player1
-        self.player2 = player2
-        self.force_action = sc_pb.RequestAction(actions=actions)
-        self.force_action_delay = force_action_delay
+# class Observation:
+#     def __init__(
+#         self,
+#         player1: sc_pb.ResponseObservation,
+#         player2: sc_pb.ResponseObservation,
+#         actions,
+#         force_action_delay=0,
+#     ):
+#         self.player1 = player1
+#         self.player2 = player2
+#         self.force_action = sc_pb.RequestAction(actions=actions)
+#         self.force_action_delay = force_action_delay
 
 
 def observation_consumer(
@@ -205,11 +208,12 @@ def observation_consumer(
             continue
 
         actions = next_observation[0].actions
-        unconverted_observation = Observation(
+        unconverted_observation = obs_collection_pb.Observation(
             player1=current_observation[0],
             player2=current_observation[1],
             actions=actions,
         )
+
         player_obs_queue.append(unconverted_observation)
 
         while len(player_obs_queue) >= 2:
@@ -232,7 +236,7 @@ def observation_consumer(
 
         # Always use last observation, it contains the player result.
         actions = next_observation[0].actions
-        unconverted_observation = Observation(
+        unconverted_observation = obs_collection_pb.Observation(
             player1=current_observation[0],
             player2=current_observation[1],
             actions=actions,

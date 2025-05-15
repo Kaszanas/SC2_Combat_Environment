@@ -5,6 +5,7 @@ from typing import List
 
 
 from pysc2_evolved import run_configs
+# from pysc2_evolved.run_configs import lib as run_configs
 
 from sc2_combat_detector.stream_observations import run_observation_stream
 
@@ -16,6 +17,7 @@ def observe_replay(replay_path: Path):
 
     replay_data = run_config.replay_data(replay_path=str(replay_path))
 
+    # TODO: This should use the proto collectino so that it is easy to dump to files:
     all_observations = []
     for observation in run_observation_stream(replay_data=replay_data):
         all_observations.append(observation)
