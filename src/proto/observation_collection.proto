@@ -1,0 +1,14 @@
+syntax = "proto2";
+
+package SC2CombatDetector;
+
+import "s2clientprotocol/sc2api.proto";
+
+message PlayerObservationCollection {
+  repeated SC2APIProtocol.ResponseObservation observations = 1;
+}
+
+message GameObservationCollection {
+  optional PlayerObservationCollection player_one_observations = 1;
+  optional PlayerObservationCollection player_two_observations = 2;
+}
