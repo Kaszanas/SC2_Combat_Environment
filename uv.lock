@@ -707,7 +707,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/03/75/628624f912cbb7587
 name = "sc2-combat-detector"
 version = "0.1.0"
 source = { editable = "." }
-dependencies = [
+dependencies
     { name = "protobuf" },
     { name = "pysc2-evolved" },
     { name = "s2clientprotocol" },
