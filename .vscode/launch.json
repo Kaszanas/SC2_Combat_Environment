@@ -14,8 +14,9 @@
                 "--replaypack-directory",
                 "./data/input",
                 "--output-directory",
-                "./data/output"
+                "./data/output",
             ],
+            "justMyCode": false
         }
     ]
 }

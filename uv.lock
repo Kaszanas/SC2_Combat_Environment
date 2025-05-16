@@ -707,7 +707,8 @@ sdist = { url = "https://files.pythonhosted.org/packages/03/75/628624f912cbb7587
 name = "sc2-combat-detector"
 version = "0.1.0"
 source = { editable = "." }
-dependencies = [
+dependencies
+    { name = "protobuf" },
     { name = "pysc2-evolved" },
     { name = "s2clientprotocol" },
     { name = "s2protocol" },
@@ -723,6 +724,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "protobuf", specifier = ">=3.20.3" },
     { name = "pysc2-evolved", directory = "src/pysc2_evolved" },
     { name = "s2clientprotocol", specifier = ">=5.0.14.93333.0" },
     { name = "s2protocol", specifier = ">=5.0.14.93333.0" },
