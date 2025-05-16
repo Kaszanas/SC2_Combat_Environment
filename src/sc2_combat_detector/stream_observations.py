@@ -1,22 +1,41 @@
-from typing import Any, Callable, Dict, Iterable, List, Sequence
+from typing import Any, Callable, Iterable, List, Sequence
 from pysc2_evolved.lib.replay import sc2_replay
 
 from pysc2_evolved.lib.replay import sc2_replay_utils
 from pysc2_evolved.lib.replay.replay_observation_stream import ReplayObservationStream
 from s2clientprotocol import common_pb2
-from s2clientprotocol import sc2api_pb2 as sc_pb
+from s2clientprotocol import sc2api_pb2 as sc2api_pb
 
 from sc2_combat_detector.proto import observation_collection_pb2 as obs_collection_pb
 
 import collections
 
 
-def get_flat_action(obs: Dict[str, Any]) -> Dict[str, Any]:
-    """Extracts action, with components starting action/, from an observation."""
-    result = {k[len("action/") :]: v for k, v in obs.items() if k.startswith("action/")}
-    if not result:
-        raise ValueError(f"Failed to parse action from observation: {obs}")
-    return result
+# TODO: Get the type of actions function argument:
+def _unconverted_observation(observation: sc2api_pb.ResponseObservation, actions):
+    force_action = sc2api_pb.RequestAction(actions=actions)
+    unconverted_observation = obs_collection_pb.Observation(
+        player1=observation[0],
+        player2=observation[1],
+        force_action=force_action,
+        force_action_delay=0,
+    )
+
+    return unconverted_observation
+
+
+def _convert_observation(
+    player_observation: obs_collection_pb.Observation,
+    force_action_delay: int,
+):
+    converted_observation = obs_collection_pb.Observation(
+        player1=player_observation.player1,
+        player2=player_observation.player2,
+        force_action=player_observation.force_action,
+        force_action_delay=force_action_delay,
+    )
+
+    return converted_observation
 
 
 # Current step sequence will yield observations right before
@@ -84,13 +103,13 @@ def get_step_sequence(action_skips: Iterable[int]) -> Sequence[int]:
 def run_observation_stream(
     replay_data: bytes,
     render: bool = False,
-    feature_screen_size: int = 84,
-    feature_minimap_size: int = 64,
+    feature_screen_size: int | None = None,  # 84,
+    feature_minimap_size: int | None = None,  # 64,
     feature_camera_width: int = 24,
-    rgb_screen_size: str = "256,192",
-    rgb_minimap_size: str = "128",
+    rgb_screen_size: str = "128,96",
+    rgb_minimap_size: str = "16",
 ):
-    interface = sc_pb.InterfaceOptions()
+    interface = sc2api_pb.InterfaceOptions()
     interface.raw = render
     interface.raw_affects_selection = True
     interface.raw_crop_to_playable_area = True
@@ -140,21 +159,21 @@ def run_observation_stream(
         player_ids: List[int] = list(player_id_to_player_info.keys())
         if len(player_ids) != 2:
             raise ValueError("We only support replays with two active players!")
-        player_one = player_ids[0]
-        player_two = player_ids[1]
+        player_one_id = player_ids[0]
+        player_two_id = player_ids[1]
 
         # Get the loops to which the controller should skip to get only the
         # relevant observations around the player making actions:
         action_skips = sc2_replay_utils.raw_action_skips(replay=replay_file)
 
-        player_action_skips = action_skips[player_one]
+        player_action_skips = action_skips[player_one_id]
         step_sequence = get_step_sequence(action_skips=player_action_skips)
 
         # Start replay at the end. Everyth
         replay_observation_stream.start_replay_from_data(
             replay_data=replay_data,
-            player_id=player_one,
-            opponent_id=player_two,
+            player_id=player_one_id,
+            opponent_id=player_two_id,
         )
         observations_iterator = replay_observation_stream.observations(
             step_sequence=step_sequence
@@ -172,21 +191,20 @@ def run_observation_stream(
 # class Observation:
 #     def __init__(
 #         self,
-#         player1: sc_pb.ResponseObservation,
-#         player2: sc_pb.ResponseObservation,
+#         player1: sc2api_pb.ResponseObservation,
+#         player2: sc2api_pb.ResponseObservation,
 #         actions,
 #         force_action_delay=0,
 #     ):
 #         self.player1 = player1
 #         self.player2 = player2
-#         self.force_action = sc_pb.RequestAction(actions=actions)
+#         self.force_action = sc2api_pb.RequestAction(actions=actions)
 #         self.force_action_delay = force_action_delay
 
 
 def observation_consumer(
     observations_iterator,
     accept_step_fn: Callable[[Any], bool],
-    force_action_fn=get_flat_action,
 ):
     current_observation = next(observations_iterator)
     current_step = current_observation[0].observation.game_loop
@@ -208,12 +226,10 @@ def observation_consumer(
             continue
 
         actions = next_observation[0].actions
-        unconverted_observation = obs_collection_pb.Observation(
-            player1=current_observation[0],
-            player2=current_observation[1],
+        unconverted_observation = _unconverted_observation(
+            observation=current_observation,
             actions=actions,
         )
-
         player_obs_queue.append(unconverted_observation)
 
         while len(player_obs_queue) >= 2:
@@ -235,10 +251,9 @@ def observation_consumer(
         current_observation = next_observation
 
         # Always use last observation, it contains the player result.
-        actions = next_observation[0].actions
-        unconverted_observation = obs_collection_pb.Observation(
-            player1=current_observation[0],
-            player2=current_observation[1],
+        actions = current_observation[0].actions
+        unconverted_observation = _unconverted_observation(
+            observation=current_observation,
             actions=actions,
         )
         player_obs_queue.append(unconverted_observation)
@@ -258,7 +273,11 @@ def observation_consumer(
             # shouldn't matter if we retrain checkpoints, since the actions from
             # the last step are never taken.
             force_action_delay = previous_delay
-        converted_observation = player_obs
+
+        converted_observation = _convert_observation(
+            player_observation=player_obs,
+            force_action_delay=force_action_delay,
+        )
         previous_delay = force_action_delay
 
         yield converted_observation
