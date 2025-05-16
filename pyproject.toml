@@ -19,6 +19,9 @@ dependencies = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.ruff]
+extend-exclude = ["src/sc2_combat_detector/proto"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/sc2_combat_detector"]
 
