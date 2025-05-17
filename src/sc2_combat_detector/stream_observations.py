@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any, Callable, Iterable, List, Sequence
 from pysc2_evolved.lib.replay import sc2_replay
 
@@ -6,6 +7,7 @@ from pysc2_evolved.lib.replay.replay_observation_stream import ReplayObservation
 from s2clientprotocol import common_pb2
 from s2clientprotocol import sc2api_pb2 as sc2api_pb
 
+from pysc2_evolved.src.pysc2_evolved import run_configs
 from sc2_combat_detector.proto import observation_collection_pb2 as obs_collection_pb
 
 import collections
@@ -101,7 +103,7 @@ def get_step_sequence(action_skips: Iterable[int]) -> Sequence[int]:
 
 
 def run_observation_stream(
-    replay_data: bytes,
+    replay_path: Path,
     render: bool = False,
     feature_screen_size: int | None = None,  # 84,
     feature_minimap_size: int | None = None,  # 64,
@@ -109,6 +111,9 @@ def run_observation_stream(
     rgb_screen_size: str = "128,96",
     rgb_minimap_size: str = "16",
 ):
+    run_config = run_configs.get()
+    replay_data = run_config.replay_data(replay_path=str(replay_path))
+
     interface = sc2api_pb.InterfaceOptions()
     interface.raw = render
     interface.raw_affects_selection = True
