@@ -11,3 +11,9 @@ wheels/
 
 
 *.SC2Replay
+protoc-*/
+*.zip
+
+*.txtpb
+*.len
+*.binpb
