@@ -1,32 +1,48 @@
-from __future__ import annotations
-
-from dataclasses import dataclass
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from typing import List
 
 from sc2_combat_detector.decorators import drive_observation_cache
-from sc2_combat_detector.observe_replay import ObserveReplayArgs, observe_replay
+from sc2_combat_detector.function_arguments.cache_observe_replay_args import (
+    CacheObserveReplayArgs,
+)
+from sc2_combat_detector.function_arguments.observe_replay_args import ObserveReplayArgs
+from sc2_combat_detector.function_arguments.thread_observe_replay_args import (
+    ThreadObserveReplayArgs,
+)
 
 from sc2_combat_detector.proto import observation_collection_pb2 as obs_collection_pb
+from sc2_combat_detector.replay_processing.stream_observations import (
+    run_observation_stream,
+)
 
 
-@dataclass
-class CacheObserveReplayArgs:
-    replaypack_directory: Path
-    output_directory: Path
-    force_processing: bool
+def observe_replay(
+    observe_replay_args: ObserveReplayArgs,
+) -> obs_collection_pb.GameObservationCollection:
+    # Open the replay to get replay_data, pass it down and get observations
 
+    # TODO: This should use the proto collectino so that it is easy to dump to files:
+    # all_observations = []
+    all_observations = obs_collection_pb.GameObservationCollection()
+    for observation in run_observation_stream(
+        replay_path=observe_replay_args.replay_path,
+        render=observe_replay_args.render,
+        feature_screen_size=observe_replay_args.feature_screen_size,
+        feature_minimap_size=observe_replay_args.feature_minimap_size,
+        feature_camera_width=observe_replay_args.feature_camera_width,
+        rgb_minimap_size=observe_replay_args.rgb_minimap_size,
+        rgb_screen_size=observe_replay_args.rgb_screen_size,
+    ):
+        all_observations.observations.append(observation)
+        # all_observations.append(observation)
 
-@dataclass
-class ThreadObserveReplayArgs:
-    cache_processing_args: CacheObserveReplayArgs
-    observe_replay_args: ObserveReplayArgs
+    return all_observations
 
 
 def run_replay_observation(
     thread_observe_replay_args: ThreadObserveReplayArgs,
-) -> obs_collection_pb.GameObservationCollection:
+):
     """
     Utility function to issue observin a replay with multiple threads.
 
@@ -50,12 +66,14 @@ def run_replay_observation(
     )(observe_replay)
 
     # Running the observations with cache:
-    observations = cached_observe_replay(
+    # This function will not returned the observations.
+    # There is a high chance that all of the observations from say 20k files
+    # will not fit into memory at once. Therefore the drive cache will have to
+    # be read sequentially anyway in the further processing steps:
+    _ = cached_observe_replay(
         cache_observe_replay_args=cache_observe_replay_args,
         observe_replay_args=observe_replay_args,
     )
-
-    return observations
 
 
 def observe_replays_subfolders(
@@ -123,8 +141,4 @@ def observe_replays_subfolders(
 
     # Run the parsing agents one per directory, these agents should save the output to be read later:
     with ThreadPool(processes=n_processes) as pool:
-        list_of_results: List[obs_collection_pb.GameObservationCollection] = pool.map(
-            run_replay_observation, args_list
-        )
-
-    return list_of_results
+        _ = pool.map(run_replay_observation, args_list)

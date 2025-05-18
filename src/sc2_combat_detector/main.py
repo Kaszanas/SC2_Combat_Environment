@@ -5,7 +5,7 @@ from typing_extensions import Annotated
 
 import typer
 
-from sc2_combat_detector.combat_detector import combat_detector
+from sc2_combat_detector.combat_detector_pipeline import combat_detector_pipeline
 from sc2_combat_detector.settings import LOGGING_FORMAT
 
 
@@ -62,7 +62,7 @@ def main(
         )
         output_directory.mkdir(parents=True)
 
-    combat_detector(
+    combat_detector_pipeline(
         replaypack_directory=replaypack_directory,
         output_directory=output_directory,
     )

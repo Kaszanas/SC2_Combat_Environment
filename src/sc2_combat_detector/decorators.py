@@ -1,11 +1,13 @@
 from pathlib import Path
+from sc2_combat_detector.function_arguments.cache_observe_replay_args import (
+    CacheObserveReplayArgs,
+)
+from sc2_combat_detector.function_arguments.observe_replay_args import ObserveReplayArgs
 from sc2_combat_detector.proto import observation_collection_pb2 as obs_collection_pb
 
 import logging
 
-from sc2_combat_detector.utils import CacheObserveReplayArgs, ObserveReplayArgs
-
-SUFFIX = ".binpb"
+from sc2_combat_detector.settings import SUFFIX
 
 
 def save_observed_replay(

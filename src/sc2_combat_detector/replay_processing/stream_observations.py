@@ -7,7 +7,7 @@ from pysc2_evolved.lib.replay.replay_observation_stream import ReplayObservation
 from s2clientprotocol import common_pb2
 from s2clientprotocol import sc2api_pb2 as sc2api_pb
 
-from pysc2_evolved.src.pysc2_evolved import run_configs
+from pysc2_evolved import run_configs
 from sc2_combat_detector.proto import observation_collection_pb2 as obs_collection_pb
 
 import collections
