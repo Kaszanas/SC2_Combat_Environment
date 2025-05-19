@@ -41,6 +41,16 @@ def main(
             dir_okay=True,
         ),
     ],
+    combat_output_directory: Annotated[
+        Path,
+        typer.Option(
+            help="Path to the output directory which will hold full observations for the detected combats. This output will be used to re-create the environment for the agents.",
+            path_type=Path,
+            resolve_path=True,
+            file_okay=False,
+            dir_okay=True,
+        ),
+    ],
     log: Annotated[
         LogLevel,
         typer.Option(
@@ -65,6 +75,7 @@ def main(
     combat_detector_pipeline(
         replaypack_directory=replaypack_directory,
         output_directory=output_directory,
+        combat_output_directory=combat_output_directory,
     )
 
 
