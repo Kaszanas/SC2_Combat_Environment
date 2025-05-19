@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List
 
 from sc2_combat_detector.decorators import drive_observation_cache
+from sc2_combat_detector.detector.detect_combat import DetectCombatResult
 from sc2_combat_detector.function_arguments.cache_observe_replay_args import (
     CacheObserveReplayArgs,
 )
@@ -17,7 +18,7 @@ from sc2_combat_detector.replay_processing.stream_observations import (
 )
 
 
-def initial_observe_replay(
+def observe_replay(
     observe_replay_args: ObserveReplayArgs,
 ) -> obs_collection_pb.GameObservationCollection:
     # Open the replay to get replay_data, pass it down and get observations
@@ -63,7 +64,7 @@ def run_replay_observation(
     # Issuing decorator here instead of on the function definition:
     cached_observe_replay = drive_observation_cache(
         force=cache_observe_replay_args.force_processing
-    )(initial_observe_replay)
+    )(observe_replay)
 
     # Running the observations with cache:
     # This function will not returned the observations.
@@ -146,7 +147,50 @@ def observe_replays_subfolders(
         _ = pool.map(run_replay_observation, args_list)
 
 
+def get_list_of_combat_gameloops(
+    detected_combats: List[DetectCombatResult],
+) -> List[int]:
+    list_of_gameloops_to_observe = []
+    for combat_interval in detected_combats:
+        combat_start, combat_end = combat_interval
+
+        # Fill in each full step between combat start and combat end:
+        full_gameloops = list(range(combat_start, combat_end + 1))
+        list_of_gameloops_to_observe += full_gameloops
+
+
 # TODO: Implement this:
 # TODO: Re-simulate combat with only the requested intervals:
-def re_observe_replay_get_combat_snapshots():
-    pass
+def re_observe_replay_get_combat_snapshots(
+    combat_output_directory: Path,
+    detected_combats: List[DetectCombatResult],
+    force_processing: bool = False,
+    n_threads: int = 6,
+):
+    # TODO: Transform detected combat result into a nested list of gameloops to be observed:
+
+    list_of_gameloops_to_observe = get_list_of_combat_gameloops(
+        detected_combats=detected_combats
+    )
+
+    all_thread_args = []
+    for gameloops_to_observe in list_of_gameloops_to_observe:
+        cache_processing_args = CacheObserveReplayArgs(
+            replaypack_directory="",
+            output_directory=combat_output_directory,
+            force_processing=force_processing,
+        )
+
+        observe_replay_args = ObserveReplayArgs.get_combat_processing_args(
+            replay_path="", gameloops_to_observe=gameloops_to_observe
+        )
+
+        thread_args = ThreadObserveReplayArgs(
+            cache_processing_args=cache_processing_args,
+            observe_replay_args=observe_replay_args,
+        )
+
+        all_thread_args.append(thread_args)
+
+    with ThreadPool(processes=n_threads) as thread_pool:
+        thread_pool.map(run_replay_observation, all_thread_args)
