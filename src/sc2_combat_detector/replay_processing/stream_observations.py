@@ -104,12 +104,13 @@ def get_step_sequence(action_skips: Iterable[int]) -> Sequence[int]:
 
 def run_observation_stream(
     replay_path: Path,
-    render: bool = False,
+    render: bool = True,
     feature_screen_size: int | None = None,  # 84,
     feature_minimap_size: int | None = None,  # 64,
     feature_camera_width: int = 24,
     rgb_screen_size: str = "128,96",
     rgb_minimap_size: str = "16",
+    no_skips: bool = False,
 ):
     run_config = run_configs.get()
     replay_data = run_config.replay_data(replay_path=str(replay_path))
@@ -149,7 +150,6 @@ def run_observation_stream(
     with ReplayObservationStream(
         interface_options=interface,
         step_mul=1,
-        game_steps_per_episode=int(1e6),
         disable_fog=True,
         add_opponent_observations=True,
     ) as replay_observation_stream:
@@ -167,12 +167,21 @@ def run_observation_stream(
         player_one_id = player_ids[0]
         player_two_id = player_ids[1]
 
-        # Get the loops to which the controller should skip to get only the
-        # relevant observations around the player making actions:
-        action_skips = sc2_replay_utils.raw_action_skips(replay=replay_file)
+        # This decides if the observations should only be acquired for
+        # when the players make their actions:
+        def _accept_step_fn(step):
+            return True
 
-        player_action_skips = action_skips[player_one_id]
-        step_sequence = get_step_sequence(action_skips=player_action_skips)
+        step_sequence = None
+        if not no_skips:
+            # Get the loops to which the controller should skip to get only the
+            # relevant observations around the player making actions:
+            action_skips = sc2_replay_utils.raw_action_skips(replay=replay_file)
+            player_action_skips = action_skips[player_one_id]
+            step_sequence = get_step_sequence(action_skips=player_action_skips)
+
+            def _accept_step_fn(step):
+                return step in player_action_skips
 
         # Start replay at the end. Everyth
         replay_observation_stream.start_replay_from_data(
@@ -183,9 +192,6 @@ def run_observation_stream(
         observations_iterator = replay_observation_stream.observations(
             step_sequence=step_sequence
         )
-
-        def _accept_step_fn(step):
-            return step in player_action_skips
 
         yield from observation_consumer(
             observations_iterator=observations_iterator,
