@@ -5,7 +5,7 @@ from pathlib import Path
 @dataclass
 class ObserveReplayArgs:
     replay_path: Path
-    render: bool = False
+    render: bool = True
     feature_screen_size: int | None = None  # 84,
     feature_minimap_size: int | None = None  # 64,
     feature_camera_width: int = 24
