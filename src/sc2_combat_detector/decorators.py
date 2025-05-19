@@ -76,7 +76,7 @@ def drive_observation_cache(force: bool = False):
 
             # This is kind of a closed interface the wrapper must be used on a function that takes
             # the replay_path, otherwise this breaks.
-            observations = func(replay_path=observe_replay_args.replay_path)
+            observations = func(observe_replay_args=observe_replay_args)
 
             _ = save_observed_replay(
                 replay_observations=observations,
