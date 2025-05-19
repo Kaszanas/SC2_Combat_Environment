@@ -1,5 +1,5 @@
 from pathlib import Path
-from sc2_combat_detector.detect_combat import detect_combat
+from sc2_combat_detector.detector.detect_combat import detect_combat
 from sc2_combat_detector.replay_processing.observe_replays import (
     observe_replays_subfolders,
 )

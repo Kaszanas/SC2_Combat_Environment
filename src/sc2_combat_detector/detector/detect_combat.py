@@ -1,6 +1,7 @@
 from dataclasses import dataclass, asdict
+from multiprocessing.pool import ThreadPool
 from pathlib import Path
-from typing import Any, Dict, Set
+from typing import Any, Dict, List, Set, Tuple
 
 from matplotlib import pyplot as plt
 
@@ -213,7 +214,7 @@ def plot_features():
     pass
 
 
-def detect_feature_peaks(game_feature_dict: Dict[int, Dict[str, Any]]):
+def detect_combat_intervals(game_feature_dict: Dict[int, Dict[str, Any]]):
     dataframe = pd.DataFrame.from_dict(data=game_feature_dict, orient="index")
     dataframe = dataframe.reset_index().rename(columns={"index": "gameloop"})
 
@@ -233,19 +234,49 @@ def detect_feature_peaks(game_feature_dict: Dict[int, Dict[str, Any]]):
     print("something")
 
 
+@dataclass
+class DetectCombatArgs:
+    filepath: Path
+
+
+@dataclass
+class DetectCombatResult:
+    filepath: Path
+    combat_intervals: List[Tuple[int, int]]
+
+
+def get_combat_intervals(detect_combat_args: DetectCombatArgs):
+    # Load the processed observations:
+    proto_obs = load_observed_replay(input_filepath=detect_combat_args.filepath)
+    # Detect combat:
+    # combat_detector = CombatDetector()
+    game_feature_dict = get_game_features(proto_obs=proto_obs)
+
+    combat_intervals = detect_combat_intervals(game_feature_dict=game_feature_dict)
+
+    result = DetectCombatResult(
+        filepath=detect_combat_args.filepath, combat_intervals=combat_intervals
+    )
+
+    return result
+
+
 # TODO: This can return the proto messages and these can be saved to drive too:
-def detect_combat(input_directory: Path):
+def detect_combat(input_directory: Path, n_threads: int):
     # TODO: Load all of the pre-processed replays and start detecting combat:
 
     files_to_process = list(input_directory.rglob(f"*{SUFFIX}"))
     if not files_to_process:
         return
 
+    all_detect_combat_args = []
     for file in files_to_process:
-        # Load the processed observations:
-        proto_obs = load_observed_replay(input_filepath=file)
-        # Detect combat:
-        # combat_detector = CombatDetector()
-        game_feature_dict = get_game_features(proto_obs=proto_obs)
+        detect_combat_args = DetectCombatArgs(filepath=file)
+        all_detect_combat_args.append(detect_combat_args)
 
-        _ = detect_feature_peaks(game_feature_dict=game_feature_dict)
+    with ThreadPool(processes=n_threads) as thread_pool:
+        combat_interval_results = thread_pool.map(
+            get_combat_intervals, all_detect_combat_args
+        )
+
+    return combat_interval_results

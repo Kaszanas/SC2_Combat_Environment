@@ -17,7 +17,7 @@ from sc2_combat_detector.replay_processing.stream_observations import (
 )
 
 
-def observe_replay(
+def initial_observe_replay(
     observe_replay_args: ObserveReplayArgs,
 ) -> obs_collection_pb.GameObservationCollection:
     # Open the replay to get replay_data, pass it down and get observations
@@ -63,7 +63,7 @@ def run_replay_observation(
     # Issuing decorator here instead of on the function definition:
     cached_observe_replay = drive_observation_cache(
         force=cache_observe_replay_args.force_processing
-    )(observe_replay)
+    )(initial_observe_replay)
 
     # Running the observations with cache:
     # This function will not returned the observations.
@@ -131,7 +131,9 @@ def observe_replays_subfolders(
                 output_directory=output_directory,
                 force_processing=force_processing,
             )
-            observe_replay_args = ObserveReplayArgs(replay_path=replay)
+            observe_replay_args = ObserveReplayArgs.get_initial_processing_args(
+                replay_path=replay
+            )
             thread_observe_replay_args = ThreadObserveReplayArgs(
                 cache_processing_args=cache_processing_args,
                 observe_replay_args=observe_replay_args,
@@ -142,3 +144,9 @@ def observe_replays_subfolders(
     # Run the parsing agents one per directory, these agents should save the output to be read later:
     with ThreadPool(processes=n_processes) as pool:
         _ = pool.map(run_replay_observation, args_list)
+
+
+# TODO: Implement this:
+# TODO: Re-simulate combat with only the requested intervals:
+def re_observe_replay_get_combat_snapshots():
+    pass
