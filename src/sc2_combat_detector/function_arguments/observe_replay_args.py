@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import List
 
 
 @dataclass
@@ -13,6 +14,7 @@ class ObserveReplayArgs:
     feature_camera_width: int = 24
     rgb_screen_size: str = "128,96"
     rgb_minimap_size: str = "16"
+    gameloops_to_observe: List[int] = []
 
     @staticmethod
     def get_initial_processing_args(replay_path: Path) -> ObserveReplayArgs:
@@ -27,7 +29,9 @@ class ObserveReplayArgs:
         )
 
     @staticmethod
-    def get_combat_processing_args(replay_path: Path) -> ObserveReplayArgs:
+    def get_combat_processing_args(
+        replay_path: Path, gameloops_to_observe: List[int]
+    ) -> ObserveReplayArgs:
         return ObserveReplayArgs(
             replay_path=replay_path,
             render=True,
@@ -36,4 +40,5 @@ class ObserveReplayArgs:
             feature_camera_width=24,
             rgb_screen_size="128,96",
             rgb_minimap_size="16",
+            gameloops_to_observe=gameloops_to_observe,
         )
