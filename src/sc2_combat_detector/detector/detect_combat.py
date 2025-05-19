@@ -9,6 +9,8 @@ from sc2_combat_detector.decorators import load_observed_replay
 from sc2_combat_detector.settings import SUFFIX
 
 
+from scipy.signal import find_peaks
+
 import pandas as pd
 
 
@@ -210,14 +212,7 @@ def get_game_features(proto_obs):
     return game_features_dict
 
 
-def plot_features():
-    pass
-
-
-def detect_combat_intervals(game_feature_dict: Dict[int, Dict[str, Any]]):
-    dataframe = pd.DataFrame.from_dict(data=game_feature_dict, orient="index")
-    dataframe = dataframe.reset_index().rename(columns={"index": "gameloop"})
-
+def plot_features(dataframe: pd.DataFrame) -> None:
     print(dataframe.head())
 
     for col in dataframe.columns:
@@ -231,7 +226,60 @@ def detect_combat_intervals(game_feature_dict: Dict[int, Dict[str, Any]]):
     plt.title("Feature values over gameloop")
     plt.show()
 
-    print("something")
+
+def detect_combat_intervals(
+    game_feature_dict: Dict[int, Dict[str, Any]],
+    min_peak_height: int,
+    min_distance: int,
+    damage_start_threshold: int,
+    damage_stop_threshold: int,
+):
+    dataframe = pd.DataFrame.from_dict(data=game_feature_dict, orient="index")
+    dataframe = dataframe.reset_index().rename(columns={"index": "gameloop"})
+
+    dataframe["total_resources_killed"] = (
+        dataframe["player1_killed_minerals_army"].diff().fillna(0)
+        + dataframe["player1_killed_vespene_army"].diff().fillna(0)
+        + dataframe["player2_killed_minerals_army"].diff().fillna(0)
+        + dataframe["player2_killed_vespene_army"].diff().fillna(0)
+    )
+
+    resource_peaks, _ = find_peaks(
+        dataframe["total_resources_killed"],
+        height=min_peak_height,
+        distance=min_distance,
+    )
+
+    dataframe["total_damage_dealt"] = (
+        dataframe["player1_total_damage_dealt"]
+        + dataframe["player2_total_damage_dealt"]
+    )
+
+    dataframe["damage_delta"].diff().fillna(0)
+
+    fights = []
+    for peak_index in resource_peaks:
+        # Step 1: Backtrack to when damage starts increasing
+        start_index = peak_index
+        while (
+            start_index > 0
+            and dataframe["damage_delta"].iloc[start_index] > damage_start_threshold
+        ):
+            start_index -= 1
+
+        end_index = peak_index
+        while (
+            end_index < len(dataframe) - 1
+            and dataframe["damage_delta"].iloc[end_index] > damage_stop_threshold
+        ):
+            end_index += 1
+
+        start_gameloop = dataframe["gameloop"].iloc[start_index]
+        end_gameloop = dataframe["gameloop"].iloc[end_index]
+
+        fights.append((start_gameloop, end_gameloop))
+
+    return fights
 
 
 @dataclass
@@ -262,7 +310,10 @@ def get_combat_intervals(detect_combat_args: DetectCombatArgs):
 
 
 # TODO: This can return the proto messages and these can be saved to drive too:
-def detect_combat(input_directory: Path, n_threads: int):
+def detect_combat(
+    input_directory: Path,
+    n_threads: int,
+) -> List[DetectCombatResult]:
     # TODO: Load all of the pre-processed replays and start detecting combat:
 
     files_to_process = list(input_directory.rglob(f"*{SUFFIX}"))
