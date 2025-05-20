@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 from s2clientprotocol import sc2api_pb2 as s2clientprotocol_dot_sc2api__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1cobservation_collection.proto\x12\x11SC2CombatDetector\x1a\x1ds2clientprotocol/sc2api.proto\"Q\n\x19GameObservationCollection\x12\x34\n\x0cobservations\x18\x01 \x03(\x0b\x32\x1e.SC2CombatDetector.Observation\"\xca\x01\n\x0bObservation\x12\x34\n\x07player1\x18\x01 \x01(\x0b\x32#.SC2APIProtocol.ResponseObservation\x12\x34\n\x07player2\x18\x02 \x01(\x0b\x32#.SC2APIProtocol.ResponseObservation\x12\x33\n\x0c\x66orce_action\x18\x03 \x01(\x0b\x32\x1d.SC2APIProtocol.RequestAction\x12\x1a\n\x12\x66orce_action_delay\x18\x04 \x01(\x05')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1cobservation_collection.proto\x12\x11SC2CombatDetector\x1a\x1ds2clientprotocol/sc2api.proto\"f\n\x19GameObservationCollection\x12\x13\n\x0breplay_path\x18\x01 \x02(\t\x12\x34\n\x0cobservations\x18\x02 \x03(\x0b\x32\x1e.SC2CombatDetector.Observation\"\xca\x01\n\x0bObservation\x12\x34\n\x07player1\x18\x01 \x01(\x0b\x32#.SC2APIProtocol.ResponseObservation\x12\x34\n\x07player2\x18\x02 \x01(\x0b\x32#.SC2APIProtocol.ResponseObservation\x12\x33\n\x0c\x66orce_action\x18\x03 \x01(\x0b\x32\x1d.SC2APIProtocol.RequestAction\x12\x1a\n\x12\x66orce_action_delay\x18\x04 \x01(\x05')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'observation_collection_pb2', globals())
@@ -22,7 +22,7 @@ if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   _GAMEOBSERVATIONCOLLECTION._serialized_start=82
-  _GAMEOBSERVATIONCOLLECTION._serialized_end=163
-  _OBSERVATION._serialized_start=166
-  _OBSERVATION._serialized_end=368
+  _GAMEOBSERVATIONCOLLECTION._serialized_end=184
+  _OBSERVATION._serialized_start=187
+  _OBSERVATION._serialized_end=389
 # @@protoc_insertion_point(module_scope)
