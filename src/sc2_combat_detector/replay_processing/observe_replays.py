@@ -24,8 +24,8 @@ def observe_replay(
     # Open the replay to get replay_data, pass it down and get observations
 
     # TODO: This should use the proto collectino so that it is easy to dump to files:
-    # all_observations = []
     all_observations = obs_collection_pb.GameObservationCollection()
+    all_observations.replay_path = str(observe_replay_args.replay_path)
     for observation in run_observation_stream(
         replay_path=observe_replay_args.replay_path,
         render=observe_replay_args.render,
@@ -36,7 +36,6 @@ def observe_replay(
         rgb_screen_size=observe_replay_args.rgb_screen_size,
     ):
         all_observations.observations.append(observation)
-        # all_observations.append(observation)
 
     return all_observations
 

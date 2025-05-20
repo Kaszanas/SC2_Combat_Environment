@@ -290,6 +290,7 @@ class DetectCombatArgs:
 @dataclass
 class DetectCombatResult:
     filepath: Path
+    replay_filepath: Path
     combat_intervals: List[Tuple[int, int]]
 
 
@@ -302,20 +303,20 @@ def get_combat_intervals(detect_combat_args: DetectCombatArgs):
 
     combat_intervals = detect_combat_intervals(game_feature_dict=game_feature_dict)
 
+    replay_filepath = Path(proto_obs.replay_path).resolve()
     result = DetectCombatResult(
-        filepath=detect_combat_args.filepath, combat_intervals=combat_intervals
+        filepath=detect_combat_args.filepath,
+        replay_filepath=replay_filepath,
+        combat_intervals=combat_intervals,
     )
 
     return result
 
 
-# TODO: This can return the proto messages and these can be saved to drive too:
 def detect_combat(
     input_directory: Path,
     n_threads: int,
 ) -> List[DetectCombatResult]:
-    # TODO: Load all of the pre-processed replays and start detecting combat:
-
     files_to_process = list(input_directory.rglob(f"*{SUFFIX}"))
     if not files_to_process:
         return

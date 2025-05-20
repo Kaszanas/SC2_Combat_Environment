@@ -111,6 +111,7 @@ def run_observation_stream(
     rgb_screen_size: str = "128,96",
     rgb_minimap_size: str = "16",
     no_skips: bool = False,
+    gameloops_to_observe: List[int] = [],
 ):
     run_config = run_configs.get()
     replay_data = run_config.replay_data(replay_path=str(replay_path))
@@ -173,6 +174,9 @@ def run_observation_stream(
             return True
 
         step_sequence = None
+        if gameloops_to_observe:
+            step_sequence = gameloops_to_observe
+
         if not no_skips:
             # Get the loops to which the controller should skip to get only the
             # relevant observations around the player making actions:
