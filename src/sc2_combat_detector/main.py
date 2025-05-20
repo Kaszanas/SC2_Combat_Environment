@@ -72,6 +72,11 @@ def main(
         )
         output_directory.mkdir(parents=True)
 
+    if not combat_output_directory.exists():
+        logging.warning(
+            f"Combat output directory path {str(combat_output_directory)} did not exist! Creating!"
+        )
+
     combat_detector_pipeline(
         replaypack_directory=replaypack_directory,
         output_directory=output_directory,
