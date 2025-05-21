@@ -1,5 +1,5 @@
 from pathlib import Path
-from sc2_combat_detector.detector.detect_combat import detect_combat
+from sc2_combat_detector.detector.detect_combat import multithreading_detect_combat
 from sc2_combat_detector.replay_processing.observe_replays import (
     observe_replays_subfolders,
     re_observe_replay_get_combat_snapshots,
@@ -21,7 +21,9 @@ def combat_detector_pipeline(
 
     # The input directory for combat detector is the output directory for the
     # observation gathering function:
-    detected_combats = detect_combat(input_directory=output_directory)
+    detected_combats = multithreading_detect_combat(
+        input_directory=output_directory,
+    )
     if not detected_combats:
         return
 
