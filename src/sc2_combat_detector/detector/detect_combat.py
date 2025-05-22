@@ -159,7 +159,7 @@ def get_game_features(
 
 def plot_features(
     dataframe: pd.DataFrame,
-    vertical_marks: List[Tuple[int, int]] = [],
+    vertical_marks: List[obs_collection_pb.ObservationInterval] = [],
     bypass_columns: Set[str] = set("gameloop"),
 ) -> None:
     print(dataframe.head())
@@ -169,7 +169,10 @@ def plot_features(
             continue
         plt.plot(dataframe["gameloop"], dataframe[col], label=col)
 
-    for i, (start, end) in enumerate(vertical_marks):
+    for i, obs_interval in enumerate(vertical_marks):
+        start = obs_interval.start_time
+        end = obs_interval.end_time
+
         plt.axvline(
             x=start,
             color="green",
@@ -234,7 +237,7 @@ def get_combat_intervals(
     dataframe: pd.DataFrame,
     damage_start_threshold: int,
     damage_stop_threshold: int,
-) -> List[Tuple[int, int]]:
+) -> List[obs_collection_pb.ObservationInterval]:
     """
     Finds the intervals from a list of single peaks.
 
@@ -251,8 +254,9 @@ def get_combat_intervals(
 
     Returns
     -------
-    List[Tuple[int, int]]
-        Returns a list of tuples that define intervals of (start_combat, end_combat).
+    List[obs_collection_pb.ObservationInterval]
+        Returns a list of ObservationInterval that define intervals of (start_combat, end_combat)
+        and an empty list of observations that is supposed to be filled in in the re-simulation.
     """
 
     fights = []
@@ -276,7 +280,12 @@ def get_combat_intervals(
         start_gameloop = dataframe["gameloop"].iloc[start_index]
         end_gameloop = dataframe["gameloop"].iloc[end_index]
 
-        fights.append((start_gameloop, end_gameloop))
+        observation_interval = obs_collection_pb.ObservationInterval(
+            start_time=start_gameloop,
+            end_time=end_gameloop,
+        )
+
+        fights.append(observation_interval)
 
     return fights
 
@@ -288,7 +297,7 @@ def detect_combat_intervals(
     damage_start_threshold: int = 100,
     damage_stop_threshold: int = 100,
     plot: bool = False,
-) -> List[Tuple[int, int]]:
+) -> List[obs_collection_pb.ObservationInterval]:
     """
     Deals with combining signals and detecting combat.
 
@@ -354,29 +363,31 @@ class FileDetectCombatArgs:
 class FileDetectCombatResult:
     filepath: Path
     replay_filepath: Path
-    combat_intervals: List[Tuple[int, int]]
+    combat_intervals: List[obs_collection_pb.ObservationInterval]
 
-    def get_gameloops_to_observe(self) -> List[int]:
+    def get_gameloops_to_observe(self) -> Tuple[List[int], List[int]]:
         """
         Transforms a list of interval tuples into a list of all of the gameloops
         that need to be observed.
 
         Returns
         -------
-        List[int]
-            List of all of the gameloops that need to be observed for combat.
+        Tuple[List[int], List[int]]
+            List of all of the start times, and the gameloops that need to be observed for combat.
         """
 
         gameloops_to_observe = []
-
+        start_times = []
         for combat_interval in self.combat_intervals:
-            combat_start, combat_end = combat_interval
+            combat_start = combat_interval.start_time
+            combat_end = combat_interval.end_time
 
             # Fill in each full step between combat start and combat end:
             full_gameloops = list(range(combat_start, combat_end + 1))
             gameloops_to_observe += full_gameloops
+            start_times.append(combat_start)
 
-        return gameloops_to_observe
+        return start_times, gameloops_to_observe
 
 
 def detect_combat(detect_combat_args: FileDetectCombatArgs) -> FileDetectCombatResult:
