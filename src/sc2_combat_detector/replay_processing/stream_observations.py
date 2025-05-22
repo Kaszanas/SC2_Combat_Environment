@@ -14,7 +14,26 @@ import collections
 
 
 # TODO: Get the type of actions function argument:
-def _unconverted_observation(observation: sc2api_pb.ResponseObservation, actions):
+def _unconverted_observation(
+    observation: sc2api_pb.ResponseObservation,
+    actions,
+) -> obs_collection_pb.Observation:
+    """
+    Initializes an unconverted observation for further processing.
+
+    Parameters
+    ----------
+    observation : sc2api_pb.ResponseObservation
+        Original response observation as returned from replay observation stream.
+    actions : _type_
+        List of actions to issue the requests for.
+
+    Returns
+    -------
+    obs_collection_pb.Observation
+        Returns an observation for further processing.
+    """
+
     force_action = sc2api_pb.RequestAction(actions=actions)
     unconverted_observation = obs_collection_pb.Observation(
         player1=observation[0],
@@ -29,7 +48,23 @@ def _unconverted_observation(observation: sc2api_pb.ResponseObservation, actions
 def _convert_observation(
     player_observation: obs_collection_pb.Observation,
     force_action_delay: int,
-):
+) -> obs_collection_pb.Observation:
+    """
+    Converts the original observation into another type if required.
+
+    Parameters
+    ----------
+    player_observation : obs_collection_pb.Observation
+        Original player observation.
+    force_action_delay : int
+        _description_
+
+    Returns
+    -------
+    obs_collection_pb.Observation
+        Observation with changed type, in case of this function it stays the same.
+    """
+
     converted_observation = obs_collection_pb.Observation(
         player1=player_observation.player1,
         player2=player_observation.player2,
@@ -108,8 +143,8 @@ def run_observation_stream(
     feature_screen_size: int | None = None,  # 84,
     feature_minimap_size: int | None = None,  # 64,
     feature_camera_width: int = 24,
-    rgb_screen_size: str = "128,96",
-    rgb_minimap_size: str = "16",
+    rgb_screen_size: str = "640,480",
+    rgb_minimap_size: str = "128",
     no_skips: bool = False,
     gameloops_to_observe: List[int] = [],
 ):
@@ -135,10 +170,14 @@ def run_observation_stream(
         interface.feature_layer.crop_to_playable_area = True
         interface.feature_layer.allow_cheating_layers = True
     if render and rgb_screen_size and rgb_minimap_size:
+        rgb_screen_size_split = rgb_screen_size.split(",")
+        screen_size_x = int(rgb_screen_size_split[0])
+        screen_size_y = int(rgb_screen_size_split[1])
+
         interface.render.resolution.CopyFrom(
             common_pb2.Size2DI(
-                x=int(rgb_screen_size.split(",")[0]),
-                y=int(rgb_screen_size.split(",")[1]),
+                x=screen_size_x,
+                y=screen_size_y,
             )
         )
         interface.render.minimap_resolution.CopyFrom(
@@ -173,9 +212,16 @@ def run_observation_stream(
         def _accept_step_fn(step):
             return True
 
+        accept_step_function = _accept_step_fn
+
         step_sequence = None
         if gameloops_to_observe:
-            step_sequence = gameloops_to_observe
+            step_sequence = get_step_sequence(action_skips=gameloops_to_observe)
+
+            def _accept_step_fn(step):
+                return step in gameloops_to_observe
+
+            accept_step_function = _accept_step_fn
 
         if not no_skips:
             # Get the loops to which the controller should skip to get only the
@@ -186,6 +232,8 @@ def run_observation_stream(
 
             def _accept_step_fn(step):
                 return step in player_action_skips
+
+            accept_step_function = _accept_step_fn
 
         # Start replay at the end. Everyth
         replay_observation_stream.start_replay_from_data(
@@ -199,28 +247,33 @@ def run_observation_stream(
 
         yield from observation_consumer(
             observations_iterator=observations_iterator,
-            accept_step_fn=_accept_step_fn,
+            accept_step_fn=accept_step_function,
         )
 
 
-# class Observation:
-#     def __init__(
-#         self,
-#         player1: sc2api_pb.ResponseObservation,
-#         player2: sc2api_pb.ResponseObservation,
-#         actions,
-#         force_action_delay=0,
-#     ):
-#         self.player1 = player1
-#         self.player2 = player2
-#         self.force_action = sc2api_pb.RequestAction(actions=actions)
-#         self.force_action_delay = force_action_delay
-
-
 def observation_consumer(
-    observations_iterator,
+    observations_iterator: Iterable,
     accept_step_fn: Callable[[Any], bool],
 ):
+    """
+    Consumes an observation iterator, and yields a converted representation.
+
+    Parameters
+    ----------
+    observations_iterator : Iterable
+        Observations iterator as returned from replay observations stream.
+        This can either be one observation, or multiple observations if two players
+        are recorded.
+    accept_step_fn : Callable[[Any], bool]
+        Function deciding if the given step should be accepted and observed.
+        Please refer to the example implementations as used in code.
+
+    Yields
+    ------
+    obs_collection_pb.Observation
+        Returns an observation as defined by the proto message.
+    """
+
     current_observation = next(observations_iterator)
     current_step = current_observation[0].observation.game_loop
     assert current_step == 0
