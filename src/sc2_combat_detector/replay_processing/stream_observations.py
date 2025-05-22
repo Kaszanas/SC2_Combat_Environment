@@ -137,19 +137,38 @@ def get_step_sequence(action_skips: Iterable[int]) -> Sequence[int]:
     return steps
 
 
-def run_observation_stream(
-    replay_path: Path,
-    render: bool = True,
-    feature_screen_size: int | None = None,  # 84,
-    feature_minimap_size: int | None = None,  # 64,
-    feature_camera_width: int = 24,
-    rgb_screen_size: str = "640,480",
-    rgb_minimap_size: str = "128",
-    no_skips: bool = False,
-    gameloops_to_observe: List[int] = [],
-):
-    run_config = run_configs.get()
-    replay_data = run_config.replay_data(replay_path=str(replay_path))
+def game_interface_setup(
+    render: bool,
+    feature_screen_size: int | None,
+    feature_minimap_size: int | None,
+    feature_camera_width: int,
+    rgb_screen_size: str,
+    rgb_minimap_size: str,
+) -> sc2api_pb.InterfaceOptions:
+    """
+    Function initializing the visual game interface settings to run along with the
+    replay observations.
+
+    Parameters
+    ----------
+    render : bool
+        _description_
+    feature_screen_size : int | None
+        _description_
+    feature_minimap_size : int | None
+        _description_
+    feature_camera_width : int
+        _description_
+    rgb_screen_size : str
+        _description_
+    rgb_minimap_size : str
+        _description_
+
+    Returns
+    -------
+    sc2api_pb.InterfaceOptions
+        Returns the message type of the sc2api proto required for interface setup.
+    """
 
     interface = sc2api_pb.InterfaceOptions()
     interface.raw = render
@@ -186,6 +205,45 @@ def run_observation_stream(
                 y=int(rgb_minimap_size),
             )
         )
+    return interface
+
+
+def run_observation_stream(
+    replay_path: Path,
+    render: bool,
+    feature_screen_size: int | None,  # 84,
+    feature_minimap_size: int | None,  # 64,
+    feature_camera_width: int,
+    rgb_screen_size: str,
+    rgb_minimap_size: str,
+    no_skips: bool,
+    gameloops_to_observe: List[int],
+):
+    interface = game_interface_setup(
+        render=render,
+        feature_screen_size=feature_screen_size,
+        feature_minimap_size=feature_minimap_size,
+        feature_camera_width=feature_camera_width,
+        rgb_screen_size=rgb_screen_size,
+        rgb_minimap_size=rgb_minimap_size,
+    )
+
+    run_config = run_configs.get()
+    replay_data = run_config.replay_data(replay_path=str(replay_path))
+
+    # Read the replay first to get the player IDs before the game engine
+    # is initiated, this will save some time later:
+    replay_file = sc2_replay.SC2Replay(replay_data=replay_data)
+    # Read the player IDs first so the replay can be started from some perspective:
+    user_id_to_player_info = sc2_replay_utils.get_active_players(replay=replay_file)
+    player_id_to_player_info = sc2_replay_utils.get_player_ids(
+        user_id_to_object_mapping=user_id_to_player_info
+    )
+    player_ids: List[int] = list(player_id_to_player_info.keys())
+    if len(player_ids) != 2:
+        raise ValueError("We only support replays with two active players!")
+    player_one_id = player_ids[0]
+    player_two_id = player_ids[1]
 
     with ReplayObservationStream(
         interface_options=interface,
@@ -193,20 +251,6 @@ def run_observation_stream(
         disable_fog=True,
         add_opponent_observations=True,
     ) as replay_observation_stream:
-        # Read the replay first to get the player IDs before the game engine
-        # is initiated, this will save some time later:
-        replay_file = sc2_replay.SC2Replay(replay_data=replay_data)
-        # Read the player IDs first so the replay can be started from some perspective:
-        user_id_to_player_info = sc2_replay_utils.get_active_players(replay=replay_file)
-        player_id_to_player_info = sc2_replay_utils.get_player_ids(
-            user_id_to_object_mapping=user_id_to_player_info
-        )
-        player_ids: List[int] = list(player_id_to_player_info.keys())
-        if len(player_ids) != 2:
-            raise ValueError("We only support replays with two active players!")
-        player_one_id = player_ids[0]
-        player_two_id = player_ids[1]
-
         # This decides if the observations should only be acquired for
         # when the players make their actions:
         def _accept_step_fn(step):
