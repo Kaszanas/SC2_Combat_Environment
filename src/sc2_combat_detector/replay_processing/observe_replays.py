@@ -85,7 +85,7 @@ def verify_observation_lengths(
         )
 
 
-# REIVEW: This function handles two distinct cases while attempting to acquire
+# REVIEW: This function handles two distinct cases while attempting to acquire
 # observations for detected combat intervals and the actions that are required
 # prior to the combat detection.
 # If this is too messy I might change this later into two separate functions.
