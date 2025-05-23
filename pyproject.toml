@@ -8,11 +8,13 @@ authors = [
 ]
 requires-python = ">=3.11"
 dependencies = [
+    "click>=8.2.1",
+    "pandas>=2.2.3",
     "protobuf>=3.20.3",
     "pysc2-evolved",
     "s2clientprotocol>=5.0.14.93333.0",
     "s2protocol>=5.0.14.93333.0",
-    "typer>=0.15.3",
+    "seaborn>=0.13.2",
 ]
 
 [build-system]
@@ -23,7 +25,7 @@ build-backend = "hatchling.build"
 extend-exclude = ["src/sc2_combat_detector/proto"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/sc2_combat_detector"]
+packages = ["src/sc2_combat_detector", "src/sc2_combat_simulator"]
 
 [tool.uv.sources]
 pysc2-evolved = { path = "src/pysc2_evolved" }

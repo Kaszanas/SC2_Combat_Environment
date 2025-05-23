@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any, Callable, Iterable, List, Sequence
 from pysc2_evolved.lib.replay import sc2_replay
 
@@ -6,17 +7,45 @@ from pysc2_evolved.lib.replay.replay_observation_stream import ReplayObservation
 from s2clientprotocol import common_pb2
 from s2clientprotocol import sc2api_pb2 as sc2api_pb
 
+from pysc2_evolved import run_configs
 from sc2_combat_detector.proto import observation_collection_pb2 as obs_collection_pb
 
 import collections
 
 
 # TODO: Get the type of actions function argument:
-def _unconverted_observation(observation: sc2api_pb.ResponseObservation, actions):
+def _unconverted_observation(
+    observation: Sequence[sc2api_pb.ResponseObservation],
+    actions,
+) -> obs_collection_pb.Observation:
+    """
+    Initializes an unconverted observation for further processing.
+
+    Parameters
+    ----------
+    observation : Sequence[sc2api_pb.ResponseObservation]
+        Sequence of response observations as returned from the replay observation stream.
+    actions : Sequence[sc2api_pb.Action]
+        Sequence of actions to issue the requests for.
+
+    Returns
+    -------
+    obs_collection_pb.Observation
+        Returns an observation for further processing.
+    """
+
+    player1_obs = observation[0]
+    player2_obs = observation[1]
+
+    if player1_obs.observation.game_loop != player2_obs.observation.game_loop:
+        raise ValueError("Got desynchronized observations! Gameloops don't match!")
+
     force_action = sc2api_pb.RequestAction(actions=actions)
+    game_loop = player1_obs.observation.game_loop
     unconverted_observation = obs_collection_pb.Observation(
-        player1=observation[0],
-        player2=observation[1],
+        game_loop=game_loop,
+        player1=player1_obs,
+        player2=player2_obs,
         force_action=force_action,
         force_action_delay=0,
     )
@@ -27,8 +56,25 @@ def _unconverted_observation(observation: sc2api_pb.ResponseObservation, actions
 def _convert_observation(
     player_observation: obs_collection_pb.Observation,
     force_action_delay: int,
-):
+) -> obs_collection_pb.Observation:
+    """
+    Converts the original observation into another type if required.
+
+    Parameters
+    ----------
+    player_observation : obs_collection_pb.Observation
+        Original player observation.
+    force_action_delay : int
+        _description_
+
+    Returns
+    -------
+    obs_collection_pb.Observation
+        Observation with changed type, in case of this function it stays the same.
+    """
+
     converted_observation = obs_collection_pb.Observation(
+        game_loop=player_observation.game_loop,
         player1=player_observation.player1,
         player2=player_observation.player2,
         force_action=player_observation.force_action,
@@ -100,15 +146,39 @@ def get_step_sequence(action_skips: Iterable[int]) -> Sequence[int]:
     return steps
 
 
-def run_observation_stream(
-    replay_data: bytes,
-    render: bool = False,
-    feature_screen_size: int | None = None,  # 84,
-    feature_minimap_size: int | None = None,  # 64,
-    feature_camera_width: int = 24,
-    rgb_screen_size: str = "128,96",
-    rgb_minimap_size: str = "16",
-):
+def game_interface_setup(
+    render: bool,
+    feature_screen_size: int | None,
+    feature_minimap_size: int | None,
+    feature_camera_width: int,
+    rgb_screen_size: str,
+    rgb_minimap_size: str,
+) -> sc2api_pb.InterfaceOptions:
+    """
+    Function initializing the visual game interface settings to run along with the
+    replay observations.
+
+    Parameters
+    ----------
+    render : bool
+        _description_
+    feature_screen_size : int | None
+        _description_
+    feature_minimap_size : int | None
+        _description_
+    feature_camera_width : int
+        _description_
+    rgb_screen_size : str
+        _description_
+    rgb_minimap_size : str
+        _description_
+
+    Returns
+    -------
+    sc2api_pb.InterfaceOptions
+        Returns the message type of the sc2api proto required for interface setup.
+    """
+
     interface = sc2api_pb.InterfaceOptions()
     interface.raw = render
     interface.raw_affects_selection = True
@@ -128,10 +198,14 @@ def run_observation_stream(
         interface.feature_layer.crop_to_playable_area = True
         interface.feature_layer.allow_cheating_layers = True
     if render and rgb_screen_size and rgb_minimap_size:
+        rgb_screen_size_split = rgb_screen_size.split(",")
+        screen_size_x = int(rgb_screen_size_split[0])
+        screen_size_y = int(rgb_screen_size_split[1])
+
         interface.render.resolution.CopyFrom(
             common_pb2.Size2DI(
-                x=int(rgb_screen_size.split(",")[0]),
-                y=int(rgb_screen_size.split(",")[1]),
+                x=screen_size_x,
+                y=screen_size_y,
             )
         )
         interface.render.minimap_resolution.CopyFrom(
@@ -140,34 +214,79 @@ def run_observation_stream(
                 y=int(rgb_minimap_size),
             )
         )
+    return interface
+
+
+def run_observation_stream(
+    replay_path: Path,
+    render: bool,
+    feature_screen_size: int | None,  # 84,
+    feature_minimap_size: int | None,  # 64,
+    feature_camera_width: int,
+    rgb_screen_size: str,
+    rgb_minimap_size: str,
+    no_skips: bool,
+    gameloops_to_observe: List[int],
+):
+    interface = game_interface_setup(
+        render=render,
+        feature_screen_size=feature_screen_size,
+        feature_minimap_size=feature_minimap_size,
+        feature_camera_width=feature_camera_width,
+        rgb_screen_size=rgb_screen_size,
+        rgb_minimap_size=rgb_minimap_size,
+    )
+
+    run_config = run_configs.get()
+    replay_data = run_config.replay_data(replay_path=str(replay_path))
+
+    # Read the replay first to get the player IDs before the game engine
+    # is initiated, this will save some time later:
+    replay_file = sc2_replay.SC2Replay(replay_data=replay_data)
+    # Read the player IDs first so the replay can be started from some perspective:
+    user_id_to_player_info = sc2_replay_utils.get_active_players(replay=replay_file)
+    player_id_to_player_info = sc2_replay_utils.get_player_ids(
+        user_id_to_object_mapping=user_id_to_player_info
+    )
+    player_ids: List[int] = list(player_id_to_player_info.keys())
+    if len(player_ids) != 2:
+        raise ValueError("We only support replays with two active players!")
+    player_one_id = player_ids[0]
+    player_two_id = player_ids[1]
 
     with ReplayObservationStream(
         interface_options=interface,
         step_mul=1,
-        game_steps_per_episode=int(1e6),
         disable_fog=True,
         add_opponent_observations=True,
     ) as replay_observation_stream:
-        # Read the replay first to get the player IDs before the game engine
-        # is initiated, this will save some time later:
-        replay_file = sc2_replay.SC2Replay(replay_data=replay_data)
-        # Read the player IDs first so the replay can be started from some perspective:
-        user_id_to_player_info = sc2_replay_utils.get_active_players(replay=replay_file)
-        player_id_to_player_info = sc2_replay_utils.get_player_ids(
-            user_id_to_object_mapping=user_id_to_player_info
-        )
-        player_ids: List[int] = list(player_id_to_player_info.keys())
-        if len(player_ids) != 2:
-            raise ValueError("We only support replays with two active players!")
-        player_one_id = player_ids[0]
-        player_two_id = player_ids[1]
+        # This decides if the observations should only be acquired for
+        # when the players make their actions:
+        def _accept_step_fn(step):
+            return True
 
-        # Get the loops to which the controller should skip to get only the
-        # relevant observations around the player making actions:
-        action_skips = sc2_replay_utils.raw_action_skips(replay=replay_file)
+        accept_step_function = _accept_step_fn
 
-        player_action_skips = action_skips[player_one_id]
-        step_sequence = get_step_sequence(action_skips=player_action_skips)
+        step_sequence = None
+        if gameloops_to_observe:
+            step_sequence = get_step_sequence(action_skips=gameloops_to_observe)
+
+            def _accept_step_fn(step):
+                return step in gameloops_to_observe
+
+            accept_step_function = _accept_step_fn
+
+        if not no_skips:
+            # Get the loops to which the controller should skip to get only the
+            # relevant observations around the player making actions:
+            action_skips = sc2_replay_utils.raw_action_skips(replay=replay_file)
+            player_action_skips = action_skips[player_one_id]
+            step_sequence = get_step_sequence(action_skips=player_action_skips)
+
+            def _accept_step_fn(step):
+                return step in player_action_skips
+
+            accept_step_function = _accept_step_fn
 
         # Start replay at the end. Everyth
         replay_observation_stream.start_replay_from_data(
@@ -179,33 +298,35 @@ def run_observation_stream(
             step_sequence=step_sequence
         )
 
-        def _accept_step_fn(step):
-            return step in player_action_skips
-
         yield from observation_consumer(
             observations_iterator=observations_iterator,
-            accept_step_fn=_accept_step_fn,
+            accept_step_fn=accept_step_function,
         )
 
 
-# class Observation:
-#     def __init__(
-#         self,
-#         player1: sc2api_pb.ResponseObservation,
-#         player2: sc2api_pb.ResponseObservation,
-#         actions,
-#         force_action_delay=0,
-#     ):
-#         self.player1 = player1
-#         self.player2 = player2
-#         self.force_action = sc2api_pb.RequestAction(actions=actions)
-#         self.force_action_delay = force_action_delay
-
-
 def observation_consumer(
-    observations_iterator,
+    observations_iterator: Iterable,
     accept_step_fn: Callable[[Any], bool],
 ):
+    """
+    Consumes an observation iterator, and yields a converted representation.
+
+    Parameters
+    ----------
+    observations_iterator : Iterable
+        Observations iterator as returned from replay observations stream.
+        This can either be one observation, or multiple observations if two players
+        are recorded.
+    accept_step_fn : Callable[[Any], bool]
+        Function deciding if the given step should be accepted and observed.
+        Please refer to the example implementations as used in code.
+
+    Yields
+    ------
+    obs_collection_pb.Observation
+        Returns an observation as defined by the proto message.
+    """
+
     current_observation = next(observations_iterator)
     current_step = current_observation[0].observation.game_loop
     assert current_step == 0

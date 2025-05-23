@@ -1,9 +1,13 @@
 from pathlib import Path
+from sc2_combat_detector.function_arguments.cache_observe_replay_args import (
+    CacheObserveReplayArgs,
+)
+from sc2_combat_detector.function_arguments.observe_replay_args import ObserveReplayArgs
 from sc2_combat_detector.proto import observation_collection_pb2 as obs_collection_pb
 
 import logging
 
-SUFFIX = ".binpb"
+from sc2_combat_detector.settings import SUFFIX
 
 
 def save_observed_replay(
@@ -33,9 +37,8 @@ def drive_observation_cache(force: bool = False):
 
     def decorator(func):
         def wrapper(
-            replaypack_directory: Path,
-            output_directory: Path,
-            replay_path: Path,
+            cache_observe_replay_args: CacheObserveReplayArgs,
+            observe_replay_args: ObserveReplayArgs,
             suffix: str = SUFFIX,
             *args,
             **kwargs,
@@ -43,13 +46,14 @@ def drive_observation_cache(force: bool = False):
             # Getting all of the relevant paths, and creating the output directories
             # if needed:
 
-            replay_stem = replay_path.stem
+            replay_stem = observe_replay_args.replay_path.stem
 
-            replay_relative_dir_structure = replay_path.relative_to(
-                replaypack_directory
+            replay_relative_dir_structure = observe_replay_args.replay_path.relative_to(
+                cache_observe_replay_args.replaypack_directory
             ).parent
             output_dir_clone_structure = (
-                output_directory / replay_relative_dir_structure
+                cache_observe_replay_args.output_directory
+                / replay_relative_dir_structure
             ).resolve()
             already_processed_observations_file = (
                 output_dir_clone_structure / replay_stem
@@ -72,7 +76,7 @@ def drive_observation_cache(force: bool = False):
 
             # This is kind of a closed interface the wrapper must be used on a function that takes
             # the replay_path, otherwise this breaks.
-            observations = func(replay_path=replay_path)
+            observations = func(observe_replay_args=observe_replay_args)
 
             _ = save_observed_replay(
                 replay_observations=observations,
