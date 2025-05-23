@@ -1,9 +1,10 @@
+import logging
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from typing import List
 
 from sc2_combat_detector.decorators import drive_observation_cache
-from sc2_combat_detector.detector.detect_combat import DetectCombatResult
+from sc2_combat_detector.detector.detect_combat import FileDetectCombatResult
 from sc2_combat_detector.function_arguments.cache_observe_replay_args import (
     CacheObserveReplayArgs,
 )
@@ -17,15 +18,125 @@ from sc2_combat_detector.replay_processing.stream_observations import (
     run_observation_stream,
 )
 
+import bisect
 
+
+def gameloop_within_interval(
+    start_time: int,
+    end_time: int,
+    game_loop: int,
+) -> bool:
+    """
+    Function checking if a gameloop is placed within a given interval.
+
+    Parameters
+    ----------
+    start_time : int
+        Start time of the interval.
+    end_time : int
+        End time of the interval.
+    game_loop : int
+        Game loop to check.
+
+    Returns
+    -------
+    bool
+        True if the gameloop is within the interval, False otherwise.
+    """
+
+    # This is a special case, end time for an interval can only be -1
+    # if it is set initially as the entire game interval.
+    # In that case any gameloop is within the interval:
+    if end_time == -1:
+        return True
+
+    # Typical case requires for the gameloop to be between start time and end time
+    # of an interval to let it through:
+    if start_time <= game_loop <= end_time:
+        return True
+
+    return False
+
+
+def verify_observation_lengths(
+    all_observations: obs_collection_pb.GameObservationCollection,
+    gameloops_to_observe: List[int],
+) -> None:
+    """
+    Checks the lengths of requested observations against the number of all of the
+    saved observations.
+
+    Parameters
+    ----------
+    all_observations : obs_collection_pb.GameObservationCollection
+        Collection of multiple intervals of observations.
+        Can be thought of as a nested list, please refer to the proto definition.
+    gameloops_to_observe : List[int]
+        List of the requested gameloops to be observed.
+    """
+
+    sum_of_lens = 0
+    for observation_interval in all_observations.observation_intervals:
+        sum_of_lens += len(observation_interval.observations)
+
+    if len(gameloops_to_observe) != sum_of_lens * 2:
+        logging.warning(
+            f"Something is wrong, requested observations for {len(gameloops_to_observe)} and received {sum_of_lens} observations!"
+        )
+
+
+# REIVEW: This function handles two distinct cases while attempting to acquire
+# observations for detected combat intervals and the actions that are required
+# prior to the combat detection.
+# If this is too messy I might change this later into two separate functions.
+# It starts to seem messy.
 def observe_replay(
     observe_replay_args: ObserveReplayArgs,
 ) -> obs_collection_pb.GameObservationCollection:
-    # Open the replay to get replay_data, pass it down and get observations
+    """
+    Observes a single replay and returns a collection of observations.
 
-    # TODO: This should use the proto collectino so that it is easy to dump to files:
+    Parameters
+    ----------
+    observe_replay_args : ObserveReplayArgs
+        Arguments to be used for replay observation, please refer to the class definition.
+
+    Returns
+    -------
+    obs_collection_pb.GameObservationCollection
+        Collection os observations as a proto message type.
+    """
+
+    # This will return an empty list if there were no registered combats to observe:
+    gameloops_to_observe = None
+    start_times = None
+    if observe_replay_args.combats_to_observe:
+        start_times, gameloops_to_observe = (
+            observe_replay_args.combats_to_observe.get_gameloops_to_observe()
+        )
+
     all_observations = obs_collection_pb.GameObservationCollection()
     all_observations.replay_path = str(observe_replay_args.replay_path)
+
+    # Special case, no combat detection is required so the interval spans the entire game:
+    entire_game_observation_interval = None
+    if not observe_replay_args.combats_to_observe:
+        entire_game_observation_interval = obs_collection_pb.ObservationInterval(
+            start_time=0,  # start_time for the case of entire game interval is just the first gameloop!
+            end_time=-1,  # special case, this is used in gameloop_within_interval function
+        )
+
+        # REVIEW: Mutating arguments may not be the best idea here!!!!!!
+        # The entire game observation interval needs to be added so that the
+        # later bisecting approach can append the observations in the right way:
+        observe_replay_args.combats_to_observe = FileDetectCombatResult(
+            replay_filepath=observe_replay_args.replay_path,
+            combat_intervals=[entire_game_observation_interval],
+        )
+
+        start_times = [entire_game_observation_interval.start_time]
+
+    combat_intervals_list = observe_replay_args.combats_to_observe.combat_intervals
     for observation in run_observation_stream(
         replay_path=observe_replay_args.replay_path,
         render=observe_replay_args.render,
@@ -34,8 +145,45 @@ def observe_replay(
         feature_camera_width=observe_replay_args.feature_camera_width,
         rgb_minimap_size=observe_replay_args.rgb_minimap_size,
         rgb_screen_size=observe_replay_args.rgb_screen_size,
+        no_skips=observe_replay_args.no_skips,
+        gameloops_to_observe=gameloops_to_observe,
     ):
-        all_observations.observations.append(observation)
+        obs_gameloop = observation.game_loop
+        # Getting the index of the interval via bisect assumes that the
+        # intervals list is sorted and non-overlapping:
+        index = bisect.bisect_right(start_times, obs_gameloop) - 1
+        curr_interval_start_time = combat_intervals_list[index].start_time
+        curr_interval_end_time = combat_intervals_list[index].end_time
+
+        # If gameloop of the observation is equal or higher than the start time
+        # and the gameloop is less or equal the end time of the interval,
+        # you can keep appending the observations to the currently initialized interval.
+        if index >= 0 and gameloop_within_interval(
+            start_time=curr_interval_start_time,
+            end_time=curr_interval_end_time,
+            game_loop=obs_gameloop,
+        ):
+            observation_interval = combat_intervals_list[index]
+            observation_interval.observations.append(observation)
+
+    # This is a special case for getting the final gameloop if no combat intervals are requested:
+    # TODO fill in the gameloop of interval end:
+    if entire_game_observation_interval:
+        entire_game_observation_interval.end_time = obs_gameloop
+
+    for filled_combat_interval in combat_intervals_list:
+        all_observations.observation_intervals.append(filled_combat_interval)
+
+    # This is only multiplied by two because for one gameloop we get the
+    # observations for both of the players:
+    # REVIEW: It seems that one observation is missing from the original
+    # REVIEW: requested gameloops to observe, this is not a major issue,
+    # REVIEW: but rather a weird inconvenience, this ought to be fixed:
+    if gameloops_to_observe:
+        verify_observation_lenghts(
+            all_observations=all_observations,
+            gameloops_to_observe=gameloops_to_observe,
+        )
 
     return all_observations
 
@@ -75,11 +223,15 @@ def run_replay_observation(
         observe_replay_args=observe_replay_args,
     )
 
+    # Returning arguments because if there are too much observations they
+    # won't fit into memory:
+    return thread_observe_replay_args
+
 
 def observe_replays_subfolders(
     replaypack_directory: Path,
     output_directory: Path,
-    n_processes: int = 6,
+    n_threads: int = 6,
     force_processing: bool = False,
 ):
     """
@@ -142,46 +294,46 @@ def observe_replays_subfolders(
             args_list.append(thread_observe_replay_args)
 
     # Run the parsing agents one per directory, these agents should save the output to be read later:
-    with ThreadPool(processes=n_processes) as pool:
+    with ThreadPool(processes=n_threads) as pool:
         _ = pool.map(run_replay_observation, args_list)
 
 
-def get_list_of_combat_gameloops(
-    detected_combats: List[DetectCombatResult],
-) -> List[int]:
-    list_of_gameloops_to_observe = []
-    for combat_interval in detected_combats:
-        combat_start, combat_end = combat_interval
-
-        # Fill in each full step between combat start and combat end:
-        full_gameloops = list(range(combat_start, combat_end + 1))
-        list_of_gameloops_to_observe += full_gameloops
-
-
-# TODO: Implement this:
-# TODO: Re-simulate combat with only the requested intervals:
 def re_observe_replay_get_combat_snapshots(
+    replaypack_directory: Path,
     combat_output_directory: Path,
-    detected_combats: List[DetectCombatResult],
+    detected_combats: List[FileDetectCombatResult],
     force_processing: bool = False,
     n_threads: int = 6,
 ):
-    # TODO: Transform detected combat result into a nested list of gameloops to be observed:
+    """
+    Issues re-observation tasks based on the detected interesting intervals.
 
-    list_of_gameloops_to_observe = get_list_of_combat_gameloops(
-        detected_combats=detected_combats
-    )
+    Parameters
+    ----------
+    replaypack_directory : Path
+        Directory containing the replaypacks.
+    combat_output_directory : Path
+        Directory where the output of the fully observed combat snapshots will be stored.
+    detected_combats : List[FileDetectCombatResult]
+        List of the detection results with fields like file which was used,
+        and the list of detected intervals.
+    force_processing : bool, optional
+        Specifies if the cache should be forced to re-create, by default False
+    n_threads : int, optional
+        Number of threads to spawn for re-simulation, by default 6
+    """
 
     all_thread_args = []
-    for gameloops_to_observe in list_of_gameloops_to_observe:
+    for detection_result in detected_combats:
         cache_processing_args = CacheObserveReplayArgs(
-            replaypack_directory="",
+            replaypack_directory=replaypack_directory,
             output_directory=combat_output_directory,
             force_processing=force_processing,
         )
 
         observe_replay_args = ObserveReplayArgs.get_combat_processing_args(
-            replay_path="", gameloops_to_observe=gameloops_to_observe
+            replay_path=detection_result.replay_filepath,
+            combats_to_observe=detection_result,
         )
 
         thread_args = ThreadObserveReplayArgs(
@@ -192,4 +344,6 @@ def re_observe_replay_get_combat_snapshots(
         all_thread_args.append(thread_args)
 
     with ThreadPool(processes=n_threads) as thread_pool:
-        thread_pool.map(run_replay_observation, all_thread_args)
+        arguments_used = thread_pool.map(run_replay_observation, all_thread_args)
+
+    return arguments_used

@@ -28,6 +28,7 @@ def combat_detector_pipeline(
         return
 
     re_observe_replay_get_combat_snapshots(
+        replaypack_directory=replaypack_directory,
         combat_output_directory=combat_output_directory,
         detected_combats=detected_combats,
     )

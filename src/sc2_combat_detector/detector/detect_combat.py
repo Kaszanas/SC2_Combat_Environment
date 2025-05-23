@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 from dataclasses import asdict, dataclass
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Set
 
 import pandas as pd
 from matplotlib import pyplot as plt
@@ -9,6 +11,12 @@ from s2clientprotocol.sc2api_pb2 import ResponseObservation
 from scipy.signal import find_peaks
 
 from sc2_combat_detector.decorators import load_observed_replay
+from sc2_combat_detector.function_arguments.file_detect_combat_args import (
+    FileDetectCombatArgs,
+)
+from sc2_combat_detector.function_results.file_detect_combat_result import (
+    FileDetectCombatResult,
+)
 from sc2_combat_detector.proto import observation_collection_pb2 as obs_collection_pb
 from sc2_combat_detector.settings import SUFFIX
 
@@ -119,46 +127,50 @@ def get_game_features(
     """
 
     game_features_dict = dict()
-    for observation in proto_obs.observations:
-        player1_observation = observation.player1.observation
-        player1_features = get_relevant_features(player_obs=player1_observation)
 
-        player2_observation = observation.player2.observation
-        player2_features = get_relevant_features(player_obs=player2_observation)
+    # Detection will happen for all of the observation intervals.
+    # This means that the detection can be ran multiple times on other detection results
+    # as long as they come as game observation collections:
+    for observation_interval in proto_obs.observation_intervals:
+        for observation in observation_interval.observations:
+            player1_observation = observation.player1.observation
+            player1_features = get_relevant_features(player_obs=player1_observation)
 
-        if player1_features.gameloop != player2_features.gameloop:
-            raise ValueError(
-                "Cannot get different gameloop for both player observations!"
+            player2_observation = observation.player2.observation
+            player2_features = get_relevant_features(player_obs=player2_observation)
+
+            if player1_features.gameloop != player2_features.gameloop:
+                raise ValueError(
+                    "Cannot get different gameloop for both player observations!"
+                )
+
+            player1_dict = asdict(player1_features)
+            player2_dict = asdict(player2_features)
+
+            dict_of_features = {}
+            skip_keys = {"gameloop"}
+            dict_of_features = add_features_to_dict(
+                dict_to_fill=dict_of_features,
+                feature_dict=player1_dict,
+                skip_keys=skip_keys,
+                prefix="player1",
             )
 
-        player1_dict = asdict(player1_features)
-        player2_dict = asdict(player2_features)
+            dict_of_features = add_features_to_dict(
+                dict_to_fill=dict_of_features,
+                feature_dict=player2_dict,
+                skip_keys=skip_keys,
+                prefix="player2",
+            )
 
-        game_features_dict[player1_features.gameloop] = {}
-
-        dict_of_features = {}
-        skip_keys = {"gameloop"}
-        add_features_to_dict(
-            dict_to_fill=dict_of_features,
-            feature_dict=player1_dict,
-            skip_keys=skip_keys,
-            prefix="player1",
-        )
-
-        add_features_to_dict(
-            dict_to_fill=dict_of_features,
-            feature_dict=player2_dict,
-            skip_keys=skip_keys,
-            prefix="player2",
-        )
-
-        game_features_dict[player1_features.gameloop] = dict_of_features
+            game_features_dict[player1_features.gameloop] = dict_of_features
 
     return game_features_dict
 
 
 def plot_features(
     dataframe: pd.DataFrame,
+    vertical_marks: List[obs_collection_pb.ObservationInterval] = [],
     bypass_columns: Set[str] = set("gameloop"),
 ) -> None:
     print(dataframe.head())
@@ -167,6 +179,25 @@ def plot_features(
         if col in bypass_columns:
             continue
         plt.plot(dataframe["gameloop"], dataframe[col], label=col)
+
+    for i, obs_interval in enumerate(vertical_marks):
+        start = obs_interval.start_time
+        end = obs_interval.end_time
+
+        plt.axvline(
+            x=start,
+            color="green",
+            linestyle="--",
+            alpha=0.7,
+            label="combat start" if i == 0 else "",
+        )
+        plt.axvline(
+            x=end,
+            color="red",
+            linestyle="--",
+            alpha=0.7,
+            label="combat end" if i == 0 else "",
+        )
 
     plt.xlabel("gameloop")
     plt.ylabel("value")
@@ -194,10 +225,10 @@ def combine_signals(dataframe: pd.DataFrame) -> pd.DataFrame:
     result_dataframe = dataframe.copy(deep=True)
 
     result_dataframe["total_resources_killed"] = (
-        result_dataframe["player1_killed_minerals_army"].diff().fillna(0)
-        + result_dataframe["player1_killed_vespene_army"].diff().fillna(0)
-        + result_dataframe["player2_killed_minerals_army"].diff().fillna(0)
-        + result_dataframe["player2_killed_vespene_army"].diff().fillna(0)
+        result_dataframe["player1_killed_minerals_army"].diff(55).fillna(0)
+        + result_dataframe["player1_killed_vespene_army"].diff(55).fillna(0)
+        + result_dataframe["player2_killed_minerals_army"].diff(55).fillna(0)
+        + result_dataframe["player2_killed_vespene_army"].diff(55).fillna(0)
     )
 
     result_dataframe["total_damage_dealt"] = (
@@ -206,7 +237,7 @@ def combine_signals(dataframe: pd.DataFrame) -> pd.DataFrame:
     )
 
     result_dataframe["damage_delta"] = (
-        result_dataframe["total_damage_dealt"].diff().fillna(0)
+        result_dataframe["total_damage_dealt"].diff(55).fillna(0)
     )
 
     return result_dataframe
@@ -217,7 +248,7 @@ def get_combat_intervals(
     dataframe: pd.DataFrame,
     damage_start_threshold: int,
     damage_stop_threshold: int,
-) -> List[Tuple[int, int]]:
+) -> List[obs_collection_pb.ObservationInterval]:
     """
     Finds the intervals from a list of single peaks.
 
@@ -234,8 +265,9 @@ def get_combat_intervals(
 
     Returns
     -------
-    List[Tuple[int, int]]
-        Returns a list of tuples that define intervals of (start_combat, end_combat).
+    List[obs_collection_pb.ObservationInterval]
+        Returns a list of ObservationInterval that define intervals of (start_combat, end_combat)
+        and an empty list of observations that is supposed to be filled in in the re-simulation.
     """
 
     fights = []
@@ -259,18 +291,24 @@ def get_combat_intervals(
         start_gameloop = dataframe["gameloop"].iloc[start_index]
         end_gameloop = dataframe["gameloop"].iloc[end_index]
 
-        fights.append((start_gameloop, end_gameloop))
+        observation_interval = obs_collection_pb.ObservationInterval(
+            start_time=start_gameloop,
+            end_time=end_gameloop,
+        )
+
+        fights.append(observation_interval)
 
     return fights
 
 
 def detect_combat_intervals(
     game_feature_dict: Dict[int, Dict[str, Any]],
-    min_peak_height: int,
-    min_distance: int,
+    min_peak_height: int = 500,
+    min_distance_gameloop: int = 1100,
     damage_start_threshold: int = 100,
     damage_stop_threshold: int = 100,
-) -> List[Tuple[int, int]]:
+    plot: bool = False,
+) -> List[obs_collection_pb.ObservationInterval]:
     """
     Deals with combining signals and detecting combat.
 
@@ -281,7 +319,7 @@ def detect_combat_intervals(
     min_peak_height : int
         The minimum height of the peak of the signal change to detect the combat.
     min_distance : int
-        The minimum gap between peaks that is required to find another combat.
+        The minimum gap in gameloops between peaks that is required to find another combat.
     damage_start_threshold : int
         The minimum signal threshold that needs to be broken upwards to state that the fight started.
     damage_stop_threshold : int
@@ -301,7 +339,7 @@ def detect_combat_intervals(
     resource_peaks, _ = find_peaks(
         combined_dataframe["total_resources_killed"],
         height=min_peak_height,
-        distance=min_distance,
+        distance=min_distance_gameloop,
     )
 
     fight_intervals = get_combat_intervals(
@@ -311,22 +349,23 @@ def detect_combat_intervals(
         damage_stop_threshold=damage_stop_threshold,
     )
 
+    if plot:
+        plot_features(
+            dataframe=combined_dataframe,
+            vertical_marks=fight_intervals,
+            bypass_columns={
+                "gameloop",
+                "player1_killed_minerals_army",
+                "player1_killed_vespene_army",
+                "player2_killed_minerals_army",
+                "player2_killed_vespene_army",
+            },
+        )
+
     return fight_intervals
 
 
-@dataclass
-class DetectCombatArgs:
-    filepath: Path
-
-
-@dataclass
-class DetectCombatResult:
-    filepath: Path
-    replay_filepath: Path
-    combat_intervals: List[Tuple[int, int]]
-
-
-def detect_combat(detect_combat_args: DetectCombatArgs) -> DetectCombatResult:
+def detect_combat(detect_combat_args: FileDetectCombatArgs) -> FileDetectCombatResult:
     """
     Loads file with in-game observations and runs the combat detection algorithm.
 
@@ -350,7 +389,7 @@ def detect_combat(detect_combat_args: DetectCombatArgs) -> DetectCombatResult:
     combat_intervals = detect_combat_intervals(game_feature_dict=game_feature_dict)
 
     replay_filepath = Path(proto_obs.replay_path).resolve()
-    result = DetectCombatResult(
+    result = FileDetectCombatResult(
         filepath=detect_combat_args.filepath,
         replay_filepath=replay_filepath,
         combat_intervals=combat_intervals,
@@ -361,8 +400,8 @@ def detect_combat(detect_combat_args: DetectCombatArgs) -> DetectCombatResult:
 
 def multithreading_detect_combat(
     input_directory: Path,
-    n_threads: int,
-) -> List[DetectCombatResult]:
+    n_threads: int = 12,
+) -> List[FileDetectCombatResult]:
     """
     Runs combat detection in multiple threads.
 
@@ -386,7 +425,7 @@ def multithreading_detect_combat(
 
     all_detect_combat_args = []
     for file in files_to_process:
-        detect_combat_args = DetectCombatArgs(filepath=file)
+        detect_combat_args = FileDetectCombatArgs(filepath=file)
         all_detect_combat_args.append(detect_combat_args)
 
     with ThreadPool(processes=n_threads) as thread_pool:
