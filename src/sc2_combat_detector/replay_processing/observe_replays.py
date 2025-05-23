@@ -58,7 +58,7 @@ def gameloop_within_interval(
     return False
 
 
-def verify_observation_lenghts(
+def verify_observation_lengths(
     all_observations: obs_collection_pb.GameObservationCollection,
     gameloops_to_observe: List[int],
 ) -> None:
