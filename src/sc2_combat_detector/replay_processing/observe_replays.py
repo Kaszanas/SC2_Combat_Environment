@@ -21,6 +21,70 @@ from sc2_combat_detector.replay_processing.stream_observations import (
 import bisect
 
 
+def gameloop_within_interval(
+    start_time: int,
+    end_time: int,
+    game_loop: int,
+) -> bool:
+    """
+    Function checking if a gameloop is placed within a given interval.
+
+    Parameters
+    ----------
+    start_time : int
+        Start time of the interval.
+    end_time : int
+        End time of the interval.
+    game_loop : int
+        Game loop to check.
+
+    Returns
+    -------
+    bool
+        True if the gameloop is within the interval, False otherwise.
+    """
+
+    # This is a special case, end time for an interval can only be -1
+    # if it is set initially as the entire game interval.
+    # In that case any gameloop is within the interval:
+    if end_time == -1:
+        return True
+
+    # Typical case requires for the gameloop to be between start time and end time
+    # of an interval to let it through:
+    if start_time <= game_loop <= end_time:
+        return True
+
+    return False
+
+
+def verify_observation_lenghts(
+    all_observations: obs_collection_pb.GameObservationCollection,
+    gameloops_to_observe: List[int],
+) -> None:
+    """
+    Checks the lengths of requested observations against the number of all of the
+    saved observations.
+
+    Parameters
+    ----------
+    all_observations : obs_collection_pb.GameObservationCollection
+        Collection of multiple intervals of observations.
+        Can be thought of as a nested list, please refer to the proto definition.
+    gameloops_to_observe : List[int]
+        List of the requested gameloops to be observed.
+    """
+
+    sum_of_lens = 0
+    for observation_interval in all_observations.observation_intervals:
+        sum_of_lens += len(observation_interval.observations)
+
+    if len(gameloops_to_observe) != sum_of_lens * 2:
+        logging.warning(
+            f"Something is wrong, requested observations for {len(gameloops_to_observe)} and received {sum_of_lens} observations!"
+        )
+
+
 # REIVEW: This function handles two distinct cases while attempting to acquire
 # observations for detected combat intervals and the actions that are required
 # prior to the combat detection.
@@ -44,27 +108,33 @@ def observe_replay(
     """
 
     # This will return an empty list if there were no registered combats to observe:
-    start_times, gameloops_to_observe = (
-        observe_replay_args.combats_to_observe.get_gameloops_to_observe()
-    )
+    gameloops_to_observe = None
+    start_times = None
+    if observe_replay_args.combats_to_observe:
+        start_times, gameloops_to_observe = (
+            observe_replay_args.combats_to_observe.get_gameloops_to_observe()
+        )
+
+    all_observations = obs_collection_pb.GameObservationCollection()
+    all_observations.replay_path = str(observe_replay_args.replay_path)
 
     # Special case, no combat detection is required so the interval spans the entire game:
     entire_game_observation_interval = None
-    if not gameloops_to_observe:
+    if not observe_replay_args.combats_to_observe:
         entire_game_observation_interval = obs_collection_pb.ObservationInterval(
             start_time=0,  # start_time for the case of entire game interval is just the first gameloop!
-            end_time=0,  # end_time is required so it needs to be set!
+            end_time=-1,  # special case, this is used in gameloop_within_interval function
         )
 
+        # REVIEW: Mutating arguments may not be the best idea here!!!!!!
         # The entire game observation interval needs to be added so that the
         # later bisecting approach can append the observations in the right way:
-        observe_replay_args.combats_to_observe.combat_intervals.append(
-            entire_game_observation_interval
+        observe_replay_args.combats_to_observe = FileDetectCombatResult(
+            replay_filepath=observe_replay_args.replay_path,
+            combat_intervals=[entire_game_observation_interval],
         )
 
-    # Open the replay to get replay_data, pass it down and get observations
-    all_observations = obs_collection_pb.GameObservationCollection()
-    all_observations.replay_path = str(observe_replay_args.replay_path)
+        start_times = [entire_game_observation_interval.start_time]
 
     combat_intervals_list = observe_replay_args.combats_to_observe.combat_intervals
     for observation in run_observation_stream(
@@ -78,7 +148,7 @@ def observe_replay(
         no_skips=observe_replay_args.no_skips,
         gameloops_to_observe=gameloops_to_observe,
     ):
-        obs_gameloop = observation.gameloop
+        obs_gameloop = observation.game_loop
         # Getting the index of the interval via bisect assumes that the
         # intervals list is sorted and non-overlapping:
         index = bisect.bisect_right(start_times, obs_gameloop) - 1
@@ -88,26 +158,31 @@ def observe_replay(
         # If gameloop of the observation is equal or higher than the start time
         # and the gameloop is less or equal the end time of the interval,
         # you can keep appending the observations to the currently initialized interval.
-        if (
-            index >= 0
-            and curr_interval_start_time <= obs_gameloop <= curr_interval_end_time
+        if index >= 0 and gameloop_within_interval(
+            start_time=curr_interval_start_time,
+            end_time=curr_interval_end_time,
+            game_loop=obs_gameloop,
         ):
-            combat_intervals_list[index].observations.append(observation)
+            observation_interval = combat_intervals_list[index]
+            observation_interval.observations.append(observation)
 
     # This is a special case for getting the final gameloop if no combat intervals are requested:
     # TODO fill in the gameloop of interval end:
     if entire_game_observation_interval:
         entire_game_observation_interval.end_time = obs_gameloop
 
-    observed_combats = observe_replay_args.combats_to_observe.combat_intervals
-    for filled_combat_interval in observed_combats:
+    for filled_combat_interval in combat_intervals_list:
         all_observations.observation_intervals.append(filled_combat_interval)
 
     # This is only multiplied by two because for one gameloop we get the
     # observations for both of the players:
-    if len(gameloops_to_observe) != len(all_observations.observations) * 2:
-        logging.warning(
-            f"Something is wrong, requested observations for {len(gameloops_to_observe)} and received {len(all_observations.observations)} observations!"
+    # REVIEW: It seems that one observation is missing from the original
+    # REVIEW: requested gameloops to observe, this is not a major issue,
+    # REVIEW: but rather a weird inconvenience, this ought to be fixed:
+    if gameloops_to_observe:
+        verify_observation_lenghts(
+            all_observations=all_observations,
+            gameloops_to_observe=gameloops_to_observe,
         )
 
     return all_observations

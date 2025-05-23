@@ -4,7 +4,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
-from sc2_combat_detector.detector.detect_combat import FileDetectCombatResult
+
+from sc2_combat_detector.function_results.file_detect_combat_result import (
+    FileDetectCombatResult,
+)
 from sc2_combat_detector.proto import observation_collection_pb2 as obs_collection_pb
 
 

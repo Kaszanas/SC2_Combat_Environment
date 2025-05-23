@@ -34,10 +34,18 @@ def _unconverted_observation(
         Returns an observation for further processing.
     """
 
+    player1_obs = observation[0]
+    player2_obs = observation[1]
+
+    if player1_obs.observation.game_loop != player2_obs.observation.game_loop:
+        raise ValueError("Got desynchronized observations! Gameloops don't match!")
+
     force_action = sc2api_pb.RequestAction(actions=actions)
+    game_loop = player1_obs.observation.game_loop
     unconverted_observation = obs_collection_pb.Observation(
-        player1=observation[0],
-        player2=observation[1],
+        game_loop=game_loop,
+        player1=player1_obs,
+        player2=player2_obs,
         force_action=force_action,
         force_action_delay=0,
     )
@@ -66,6 +74,7 @@ def _convert_observation(
     """
 
     converted_observation = obs_collection_pb.Observation(
+        game_loop=player_observation.game_loop,
         player1=player_observation.player1,
         player2=player_observation.player2,
         force_action=player_observation.force_action,
