@@ -1,9 +1,8 @@
 import enum
 import logging
 from pathlib import Path
-from typing_extensions import Annotated
 
-import typer
+import click
 
 from sc2_combat_detector.combat_detector_pipeline import combat_detector_pipeline
 from sc2_combat_detector.settings import LOGGING_FORMAT
@@ -19,48 +18,55 @@ class LogLevel(str, enum.Enum):
     CRITICAL = "CRITICAL"
 
 
+@click.command(
+    help="Tool to acquire action observations from the StarCraft 2 replays, and detect combat. Produces intermediate files for sc2_combat_simulator."
+)
+@click.option(
+    "--replaypack_directory",
+    type=click.Path(
+        dir_okay=True,
+        file_okay=False,
+        resolve_path=True,
+        path_type=Path,
+    ),
+    required=True,
+    help="Path to the directory that contains replaypacks to be processed.",
+)
+@click.option(
+    "--output_directory",
+    type=click.Path(
+        dir_okay=True,
+        file_okay=False,
+        resolve_path=True,
+        path_type=Path,
+    ),
+    required=True,
+    help="Path to the output directory, the files processed by the game engine will be placed there for seeding the game engine.",
+)
+@click.option(
+    "--combat_output_directory",
+    type=click.Path(
+        dir_okay=True,
+        file_okay=False,
+        resolve_path=True,
+        path_type=Path,
+    ),
+    required=True,
+    help="Path to the output directory which will hold full observations for the detected combats. This output will be used to re-create the environment for the agents.",
+)
+@click.option(
+    "--log",
+    type=click.Choice(list(LogLevel), case_sensitive=False),
+    default=LogLevel.WARNING,
+    help="Log level. Default is WARNING.",
+)
 def main(
-    replaypack_directory: Annotated[
-        Path,
-        typer.Option(
-            help="Path to the directory that contains replaypacks to be processed.",
-            path_type=Path,
-            resolve_path=True,
-            exists=True,
-            file_okay=False,
-            dir_okay=True,
-        ),
-    ],
-    output_directory: Annotated[
-        Path,
-        typer.Option(
-            help="Path to the output directory, the files processed by the game engine will be placed there for seeding the game engine.",
-            path_type=Path,
-            resolve_path=True,
-            file_okay=False,
-            dir_okay=True,
-        ),
-    ],
-    combat_output_directory: Annotated[
-        Path,
-        typer.Option(
-            help="Path to the output directory which will hold full observations for the detected combats. This output will be used to re-create the environment for the agents.",
-            path_type=Path,
-            resolve_path=True,
-            file_okay=False,
-            dir_okay=True,
-        ),
-    ],
-    log: Annotated[
-        LogLevel,
-        typer.Option(
-            help="Set the log level.",
-            case_sensitive=False,
-        ),
-    ] = LogLevel.INFO,
+    replaypack_directory: Path,
+    output_directory: Path,
+    combat_output_directory: Path,
+    log: LogLevel,
 ):
-    # Run Pysc2 parser and then load the data and perform combat detection:
-
+    # Run PySC2 parser and then load the data and perform combat detection:
     numeric_level = getattr(logging, log.upper(), None)
     if not isinstance(numeric_level, int):
         raise ValueError(f"Invalid log level: {numeric_level}")
@@ -86,4 +92,4 @@ def main(
 
 
 if __name__ == "__main__":
-    typer.run(main)
+    main()
