@@ -180,7 +180,7 @@ def observe_replay(
     # REVIEW: requested gameloops to observe, this is not a major issue,
     # REVIEW: but rather a weird inconvenience, this ought to be fixed:
     if gameloops_to_observe:
-        verify_observation_lenghts(
+        verify_observation_lengths(
             all_observations=all_observations,
             gameloops_to_observe=gameloops_to_observe,
         )
