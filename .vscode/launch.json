@@ -11,10 +11,12 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "--replaypack-directory",
+                "--replaypack_directory",
                 "./data/input",
-                "--output-directory",
+                "--output_directory",
                 "./data/output",
+                "--combat_output_directory",
+                "./data/combat_output",
             ],
             "justMyCode": false
         }

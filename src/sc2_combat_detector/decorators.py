@@ -1,11 +1,13 @@
 from pathlib import Path
+from sc2_combat_detector.function_arguments.cache_observe_replay_args import (
+    CacheObserveReplayArgs,
+)
+from sc2_combat_detector.function_arguments.observe_replay_args import ObserveReplayArgs
 from sc2_combat_detector.proto import observation_collection_pb2 as obs_collection_pb
 
 import logging
 
-from sc2_combat_detector.utils import CacheObserveReplayArgs, ObserveReplayArgs
-
-SUFFIX = ".binpb"
+from sc2_combat_detector.settings import SUFFIX
 
 
 def save_observed_replay(
@@ -74,7 +76,7 @@ def drive_observation_cache(force: bool = False):
 
             # This is kind of a closed interface the wrapper must be used on a function that takes
             # the replay_path, otherwise this breaks.
-            observations = func(replay_path=observe_replay_args.replay_path)
+            observations = func(observe_replay_args=observe_replay_args)
 
             _ = save_observed_replay(
                 replay_observations=observations,

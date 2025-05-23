@@ -4,14 +4,31 @@ package SC2CombatDetector;
 
 import "s2clientprotocol/sc2api.proto";
 
-message GameObservationCollection { repeated Observation observations = 1; }
+message GameObservationCollection {
+  // Path to the replay file.
+  required string replay_path = 1;
+  // All of the observations from the game
+  repeated ObservationInterval observation_intervals = 2;
+}
+
+message ObservationInterval {
+  // The start time of the observation interval.
+  required int32 start_time = 1;
+  // The end time of the observation interval.
+  required int32 end_time = 2;
+  // The observations in this interval.
+  repeated Observation observations = 3;
+}
 
 // Originally from pysc2:
 message Observation {
-  optional SC2APIProtocol.ResponseObservation player1 = 1;
-  // Used for opponent's observation during training.
-  optional SC2APIProtocol.ResponseObservation player2 = 2;
+  // Gameloop for the acquired observation.
+  required int32 game_loop = 1;
+  // The observation for the player.
+  optional SC2APIProtocol.ResponseObservation player1 = 2;
+  // The observation for the opponent.
+  optional SC2APIProtocol.ResponseObservation player2 = 3;
   // Used for supervised learning.
-  optional SC2APIProtocol.RequestAction force_action = 3;
-  optional int32 force_action_delay = 4;
+  optional SC2APIProtocol.RequestAction force_action = 4;
+  optional int32 force_action_delay = 5;
 }
