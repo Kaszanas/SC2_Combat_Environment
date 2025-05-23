@@ -23,8 +23,8 @@ def _unconverted_observation(
 
     Parameters
     ----------
-    observation : sc2api_pb.ResponseObservation
-        Original response observation as returned from replay observation stream.
+    observation : Sequence[sc2api_pb.ResponseObservation]
+        Sequence of response observations as returned from the replay observation stream.
     actions : Sequence[sc2api_pb.Action]
         Sequence of actions to issue the requests for.
 
