@@ -15,7 +15,7 @@ import collections
 
 # TODO: Get the type of actions function argument:
 def _unconverted_observation(
-    observation: sc2api_pb.ResponseObservation,
+    observation: Sequence[sc2api_pb.ResponseObservation],
     actions,
 ) -> obs_collection_pb.Observation:
     """
