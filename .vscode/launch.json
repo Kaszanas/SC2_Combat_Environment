@@ -19,6 +19,17 @@
                 "./data/combat_output",
             ],
             "justMyCode": false
+        },
+        {
+            "name": "Python Debugger: Combat Simulation",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": [
+                "--combat_detection_dir",
+                "./data/combat_output",
+            ]
         }
     ]
 }
