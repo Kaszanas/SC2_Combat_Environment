@@ -4,3 +4,6 @@
 [submodule "src/proto/s2client-proto"]
 	path = src/proto/s2client-proto
 	url = https://github.com/Blizzard/s2client-proto
+[submodule "src/smac_evolved"]
+	path = src/smac_evolved
+	url = https://github.com/Kaszanas/smac_evolved
