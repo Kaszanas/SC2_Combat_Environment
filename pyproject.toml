@@ -28,7 +28,6 @@ extend-exclude = ["src/sc2_combat_detector/proto"]
 packages = ["src/sc2_combat_detector", "src/sc2_combat_simulator"]
 
 [tool.uv.sources]
-smac-evolved = { path = "src/smac_evolved" }
 pysc2-evolved = { git = "https://github.com/Kaszanas/pysc2_evolved", rev = "dev" }
 
 [dependency-groups]
