@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 import click
 
-from sc2_combat_simulator import sc2_combat_simulator
+from sc2_combat_simulator.combat_simulator import sc2_combat_simulator
 from sc2_combat_simulator.settings import LOGGING_FORMAT
 
 
@@ -50,4 +50,4 @@ def main(
 
 
 if __name__ == "__main__":
-    pass
+    main()
