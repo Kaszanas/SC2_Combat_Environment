@@ -17,8 +17,8 @@ class EnvSeedData:
 
 def filter_units(
     units: List[sc2proto_raw_pb.Unit],
-    unit_types_to_ignore: Set[int] = {1, 2, 3},
-):
+    unit_types_to_ignore: Set[int] = {},
+) -> List[sc2proto_raw_pb.Unit]:
     units_to_keep = []
     for unit in units:
         # Filter out units that are currently being built:
@@ -36,6 +36,14 @@ def filter_units(
         units_to_keep.append(unit)
 
     return units_to_keep
+
+
+@dataclass
+class GetAllUnitsResult:
+    player1_units: List[sc2proto_raw_pb.Unit]
+    player2_units: List[sc2proto_raw_pb.Unit]
+    player1_map_state: sc2proto_raw_pb.MapState
+    player2_map_state: sc2proto_raw_pb.MapState
 
 
 def get_all_units(
@@ -62,12 +70,14 @@ def get_all_units(
         player1_filtered_units = filter_units(units=player1_units)
         player2_filtered_units = filter_units(units=player2_units)
 
-        print(player1_filtered_units)
-        print(player1_map_state)
-        print(player2_filtered_units)
-        print(player2_map_state)
+        get_all_units_result = GetAllUnitsResult(
+            player1_units=player1_filtered_units,
+            player2_units=player2_filtered_units,
+            player1_map_state=player1_map_state,
+            player2_map_state=player2_map_state,
+        )
 
-        units_in_observations.append((player1_filtered_units, player2_filtered_units))
+        units_in_observations.append(get_all_units_result)
 
     return units_in_observations
 
@@ -84,9 +94,7 @@ def sc2_combat_simulator(combat_detection_dir: Path):
         combat_intervals_observations = load_observed_replay(
             input_filepath=combat_interval_file,
         )
-        print(combat_intervals_observations)
         for interval in combat_intervals_observations.observation_intervals:
-            units = get_all_units(observation_interval=interval)
-            print(units)
+            _ = get_all_units(observation_interval=interval)
             # Reproduce the combats in the environment:
             # Run the experiments with reinforcement learning or other control algos:
