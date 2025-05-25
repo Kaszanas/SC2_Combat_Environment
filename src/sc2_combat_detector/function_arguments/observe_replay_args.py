@@ -17,6 +17,7 @@ class ObserveReplayArgs:
     no_skips: bool
     combats_to_observe: FileDetectCombatResult | None
     render: bool = True
+    raw: bool = True
     feature_screen_size: int | None = None  # 84,
     feature_minimap_size: int | None = None  # 64,
     feature_camera_width: int = 24
@@ -28,6 +29,7 @@ class ObserveReplayArgs:
         return ObserveReplayArgs(
             replay_path=replay_path,
             render=False,
+            raw=False,
             feature_screen_size=None,
             feature_minimap_size=None,
             feature_camera_width=24,
@@ -45,6 +47,7 @@ class ObserveReplayArgs:
         return ObserveReplayArgs(
             replay_path=replay_path,
             render=False,
+            raw=True,
             feature_screen_size=None,
             feature_minimap_size=None,
             feature_camera_width=24,

@@ -148,6 +148,7 @@ def get_step_sequence(action_skips: Iterable[int]) -> Sequence[int]:
 
 def game_interface_setup(
     render: bool,
+    raw: bool,
     feature_screen_size: int | None,
     feature_minimap_size: int | None,
     feature_camera_width: int,
@@ -180,7 +181,7 @@ def game_interface_setup(
     """
 
     interface = sc2api_pb.InterfaceOptions()
-    interface.raw = render
+    interface.raw = raw
     interface.raw_affects_selection = True
     interface.raw_crop_to_playable_area = True
     interface.score = True
@@ -220,6 +221,7 @@ def game_interface_setup(
 def run_observation_stream(
     replay_path: Path,
     render: bool,
+    raw: bool,
     feature_screen_size: int | None,  # 84,
     feature_minimap_size: int | None,  # 64,
     feature_camera_width: int,
@@ -230,6 +232,7 @@ def run_observation_stream(
 ):
     interface = game_interface_setup(
         render=render,
+        raw=raw,
         feature_screen_size=feature_screen_size,
         feature_minimap_size=feature_minimap_size,
         feature_camera_width=feature_camera_width,

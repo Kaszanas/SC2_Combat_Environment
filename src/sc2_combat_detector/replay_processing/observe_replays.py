@@ -140,6 +140,7 @@ def observe_replay(
     for observation in run_observation_stream(
         replay_path=observe_replay_args.replay_path,
         render=observe_replay_args.render,
+        raw=observe_replay_args.raw,
         feature_screen_size=observe_replay_args.feature_screen_size,
         feature_minimap_size=observe_replay_args.feature_minimap_size,
         feature_camera_width=observe_replay_args.feature_camera_width,
