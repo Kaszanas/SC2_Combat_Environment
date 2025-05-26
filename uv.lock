@@ -820,7 +820,7 @@ wheels = [
 [[package]]
 name = "pysc2-evolved"
 version = "0.1.0"
-source = { git = "https://github.com/Kaszanas/pysc2_evolved?rev=dev#1275faa499ff9679c9c0fb52acddf17ae7e54286" }
+source = { git = "https://github.com/Kaszanas/pysc2_evolved?rev=dev#c0a26ec4748c5992aa08314f6f06bd093d9f5d28" }
 dependencies = [
     { name = "absl-py" },
     { name = "click" },
