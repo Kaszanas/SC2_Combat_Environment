@@ -9,6 +9,13 @@ import sc2_combat_detector.proto.observation_collection_pb2 as obs_collection_pb
 
 import s2clientprotocol.raw_pb2 as sc2proto_raw_pb
 
+from sc2_combat_simulator.function_results.player_units_map_state import (
+    PlayerUnitsMapState,
+)
+
+
+from sc2_combat_simulator.env.sc2_combat_env import CombatSC2Env
+
 
 @dataclass
 class EnvSeedData:
@@ -38,14 +45,6 @@ def filter_units(
     return units_to_keep
 
 
-@dataclass
-class GetAllUnitsResult:
-    player1_units: List[sc2proto_raw_pb.Unit]
-    player2_units: List[sc2proto_raw_pb.Unit]
-    player1_map_state: sc2proto_raw_pb.MapState
-    player2_map_state: sc2proto_raw_pb.MapState
-
-
 def get_all_units(
     observation_interval: obs_collection_pb.ObservationInterval,
 ):
@@ -70,7 +69,7 @@ def get_all_units(
         player1_filtered_units = filter_units(units=player1_units)
         player2_filtered_units = filter_units(units=player2_units)
 
-        get_all_units_result = GetAllUnitsResult(
+        get_all_units_result = PlayerUnitsMapState(
             player1_units=player1_filtered_units,
             player2_units=player2_filtered_units,
             player1_map_state=player1_map_state,
@@ -95,6 +94,29 @@ def sc2_combat_simulator(combat_detection_dir: Path):
             input_filepath=combat_interval_file,
         )
         for interval in combat_intervals_observations.observation_intervals:
-            _ = get_all_units(observation_interval=interval)
+            player_units_map_state = get_all_units(observation_interval=interval)
+            only_first_interval_state = player_units_map_state[0]
             # Reproduce the combats in the environment:
             # Run the experiments with reinforcement learning or other control algos:
+            CombatSC2Env(
+                map_name="",
+                battle_net_map=True,
+                players=None,
+                agent_interface_format=None,
+                discount=1.0,
+                discount_zero_after_timeout=False,
+                visualize=False,
+                step_mul=1,
+                realtime=False,
+                save_replay_episodes=0,
+                replay_dir=None,
+                replay_prefix=None,
+                game_steps_per_episode=None,
+                score_index=None,
+                score_multiplier=None,
+                random_seed=None,
+                disable_fog=False,
+                ensure_available_actions=True,
+                version=None,
+                player_units_map_state=only_first_interval_state,
+            )
