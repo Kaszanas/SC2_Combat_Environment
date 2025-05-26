@@ -35,6 +35,8 @@ from pysc2_evolved.lib import (
     stopwatch,
 )
 
+from sc2_combat_simulator.combat_simulator import PlayerUnitsMapState
+
 sw = stopwatch.sw
 
 possible_results = {
@@ -88,7 +90,7 @@ MAX_STEP_COUNT = 524000  # The game fails above 2^19=524288 steps.
 NUM_ACTION_DELAY_BUCKETS = 10
 
 
-class SC2Env(environment.Base):
+class CombatSC2Env(environment.Base):
     """A Starcraft II environment.
 
     The implementation details of the action and observation specs are in
@@ -119,6 +121,7 @@ class SC2Env(environment.Base):
         disable_fog: bool = False,
         ensure_available_actions: bool = True,
         version: str | None = None,
+        player_units_map_state: PlayerUnitsMapState,
     ) -> None:
         """Create a SC2 Env.
 

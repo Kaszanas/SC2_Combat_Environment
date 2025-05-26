@@ -20,6 +20,19 @@ from sc2_combat_detector.replay_processing.stream_observations import (
 
 import bisect
 
+import sc2reader
+
+
+def get_replay_map_hash(replay_path: Path) -> str:
+    # Read replay with sc2reader to get the map hash:
+
+    # NOTE: Cannot use the sc2_replay.Replay from pysc2 because it cannot
+    # NOTE: effectively parse the game data. Something is wrong with the encoding.
+    replay = sc2reader.load_replay(str(replay_path), load_level=1)
+    map_hash = replay.map_hash
+
+    return map_hash
+
 
 def gameloop_within_interval(
     start_time: int,
@@ -115,8 +128,12 @@ def observe_replay(
             observe_replay_args.combats_to_observe.get_gameloops_to_observe()
         )
 
+    map_hash = get_replay_map_hash(
+        replay_path=observe_replay_args.replay_path,
+    )
     all_observations = obs_collection_pb.GameObservationCollection()
     all_observations.replay_path = str(observe_replay_args.replay_path)
+    all_observations.map_hash = map_hash
 
     # Special case, no combat detection is required so the interval spans the entire game:
     entire_game_observation_interval = None

@@ -7,8 +7,9 @@ import "s2clientprotocol/sc2api.proto";
 message GameObservationCollection {
   // Path to the replay file.
   required string replay_path = 1;
+  required string map_hash = 2;
   // All of the observations from the game
-  repeated ObservationInterval observation_intervals = 2;
+  repeated ObservationInterval observation_intervals = 3;
 }
 
 message ObservationInterval {
