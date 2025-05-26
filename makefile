@@ -13,3 +13,9 @@ compile_protos:
 		-I=./src/proto/s2client-proto \
 		--python_out=./src/sc2_combat_detector/proto \
 		./src/proto/observation_collection.proto
+
+.PHONY: uv_upgrade
+uv_upgrade:
+	@echo "Upgrading pysc2_evolved"
+	uv lock --upgrade-package pysc2_evolved
+	uv sync
