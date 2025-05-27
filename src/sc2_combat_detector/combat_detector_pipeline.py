@@ -10,6 +10,7 @@ def combat_detector_pipeline(
     replaypack_directory: Path,
     output_directory: Path,
     combat_output_directory: Path,
+    observe_combat: bool,
 ):
     # The observation function does not return anything just because all of the
     # replay observations for a major dataset won't fit into memory.
@@ -24,7 +25,7 @@ def combat_detector_pipeline(
     detected_combats = multithreading_detect_combat(
         input_directory=output_directory,
     )
-    if not detected_combats:
+    if not detected_combats or not observe_combat:
         return
 
     re_observe_replay_get_combat_snapshots(

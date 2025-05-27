@@ -8,6 +8,9 @@ from sc2_combat_detector.combat_detector_pipeline import combat_detector_pipelin
 from sc2_combat_detector.settings import LOGGING_FORMAT
 
 
+import matplotlib
+
+
 class LogLevel(str, enum.Enum):
     """Log levels for the application."""
 
@@ -55,6 +58,12 @@ class LogLevel(str, enum.Enum):
     help="Path to the output directory which will hold full observations for the detected combats. This output will be used to re-create the environment for the agents.",
 )
 @click.option(
+    "--obserVe_combat/--no_observe_combat",
+    is_flag=True,
+    default=True,
+    help="If set, the combat detection will be performed and the combat observations will be saved. If set to no_observe_combat, only the detection will be performed without saving the combat observations.",
+)
+@click.option(
     "--log",
     type=click.Choice(list(LogLevel), case_sensitive=False),
     default=LogLevel.WARNING,
@@ -64,6 +73,7 @@ def main(
     replaypack_directory: Path,
     output_directory: Path,
     combat_output_directory: Path,
+    observe_combat: bool,
     log: LogLevel,
 ):
     # Run PySC2 parser and then load the data and perform combat detection:
@@ -88,8 +98,11 @@ def main(
         replaypack_directory=replaypack_directory,
         output_directory=output_directory,
         combat_output_directory=combat_output_directory,
+        observe_combat=observe_combat,
     )
 
 
 if __name__ == "__main__":
+    matplotlib.use("Agg")  # Use non-interactive backend for file output
+
     main()

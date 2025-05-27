@@ -17,6 +17,7 @@
                 "./data/output",
                 "--combat_output_directory",
                 "./data/combat_output",
+                "--no_observe_combat",
             ],
             "justMyCode": false
         },
