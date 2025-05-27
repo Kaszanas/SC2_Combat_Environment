@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 from s2clientprotocol import sc2api_pb2 as s2clientprotocol_dot_sc2api__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1cobservation_collection.proto\x12\x11SC2CombatDetector\x1a\x1ds2clientprotocol/sc2api.proto\"\x89\x01\n\x19GameObservationCollection\x12\x13\n\x0breplay_path\x18\x01 \x02(\t\x12\x10\n\x08map_hash\x18\x02 \x02(\t\x12\x45\n\x15observation_intervals\x18\x03 \x03(\x0b\x32&.SC2CombatDetector.ObservationInterval\"q\n\x13ObservationInterval\x12\x12\n\nstart_time\x18\x01 \x02(\x05\x12\x10\n\x08\x65nd_time\x18\x02 \x02(\x05\x12\x34\n\x0cobservations\x18\x03 \x03(\x0b\x32\x1e.SC2CombatDetector.Observation\"\xdd\x01\n\x0bObservation\x12\x11\n\tgame_loop\x18\x01 \x02(\x05\x12\x34\n\x07player1\x18\x02 \x01(\x0b\x32#.SC2APIProtocol.ResponseObservation\x12\x34\n\x07player2\x18\x03 \x01(\x0b\x32#.SC2APIProtocol.ResponseObservation\x12\x33\n\x0c\x66orce_action\x18\x04 \x01(\x0b\x32\x1d.SC2APIProtocol.RequestAction\x12\x1a\n\x12\x66orce_action_delay\x18\x05 \x01(\x05')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1cobservation_collection.proto\x12\x11SC2CombatDetector\x1a\x1ds2clientprotocol/sc2api.proto\"\x9f\x01\n\x19GameObservationCollection\x12\x13\n\x0breplay_path\x18\x01 \x02(\t\x12\x10\n\x08map_hash\x18\x02 \x02(\t\x12\x14\n\x0cgame_version\x18\x03 \x02(\t\x12\x45\n\x15observation_intervals\x18\x04 \x03(\x0b\x32&.SC2CombatDetector.ObservationInterval\"q\n\x13ObservationInterval\x12\x12\n\nstart_time\x18\x01 \x02(\x05\x12\x10\n\x08\x65nd_time\x18\x02 \x02(\x05\x12\x34\n\x0cobservations\x18\x03 \x03(\x0b\x32\x1e.SC2CombatDetector.Observation\"\xdd\x01\n\x0bObservation\x12\x11\n\tgame_loop\x18\x01 \x02(\x05\x12\x34\n\x07player1\x18\x02 \x01(\x0b\x32#.SC2APIProtocol.ResponseObservation\x12\x34\n\x07player2\x18\x03 \x01(\x0b\x32#.SC2APIProtocol.ResponseObservation\x12\x33\n\x0c\x66orce_action\x18\x04 \x01(\x0b\x32\x1d.SC2APIProtocol.RequestAction\x12\x1a\n\x12\x66orce_action_delay\x18\x05 \x01(\x05')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'observation_collection_pb2', globals())
@@ -22,9 +22,9 @@ if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   _GAMEOBSERVATIONCOLLECTION._serialized_start=83
-  _GAMEOBSERVATIONCOLLECTION._serialized_end=220
-  _OBSERVATIONINTERVAL._serialized_start=222
-  _OBSERVATIONINTERVAL._serialized_end=335
-  _OBSERVATION._serialized_start=338
-  _OBSERVATION._serialized_end=559
+  _GAMEOBSERVATIONCOLLECTION._serialized_end=242
+  _OBSERVATIONINTERVAL._serialized_start=244
+  _OBSERVATIONINTERVAL._serialized_end=357
+  _OBSERVATION._serialized_start=360
+  _OBSERVATION._serialized_end=581
 # @@protoc_insertion_point(module_scope)

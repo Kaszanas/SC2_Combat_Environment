@@ -8,8 +8,10 @@ message GameObservationCollection {
   // Path to the replay file.
   required string replay_path = 1;
   required string map_hash = 2;
+  // required bool battle_net_map = 3;
+  required string game_version = 3;
   // All of the observations from the game
-  repeated ObservationInterval observation_intervals = 3;
+  repeated ObservationInterval observation_intervals = 4;
 }
 
 message ObservationInterval {
