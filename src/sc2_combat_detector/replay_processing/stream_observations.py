@@ -291,7 +291,7 @@ def run_observation_stream(
 
             accept_step_function = _accept_step_fn
 
-        # Start replay at the end. Everyth
+        # Start replay at the end.
         replay_observation_stream.start_replay_from_data(
             replay_data=replay_data,
             player_id=player_one_id,
