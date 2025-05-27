@@ -18,7 +18,7 @@ from sc2_combat_detector.function_results.file_detect_combat_result import (
     FileDetectCombatResult,
 )
 from sc2_combat_detector.proto import observation_collection_pb2 as obs_collection_pb
-from sc2_combat_detector.settings import SUFFIX
+from sc2_combat_detector.settings import PLOT_DIR, SUFFIX
 
 
 @dataclass
@@ -172,6 +172,9 @@ def plot_features(
     dataframe: pd.DataFrame,
     vertical_marks: List[obs_collection_pb.ObservationInterval] = [],
     bypass_columns: Set[str] = set("gameloop"),
+    plot_dir: Path = PLOT_DIR,
+    plot_filename: str = "detection.pdf",
+    zoom_padding: int = 200,
 ) -> None:
     print(dataframe.head())
 
@@ -202,8 +205,58 @@ def plot_features(
     plt.xlabel("gameloop")
     plt.ylabel("value")
     plt.legend()
-    plt.title("Feature values over gameloop")
-    plt.show()
+    plt.title("Feature Values Over Gameloop")
+
+    plt.savefig(
+        f"{plot_dir}/{plot_filename}",
+        dpi=300,
+    )
+    plt.close()
+
+    # Zoomed in plots for each interval:
+    for i, obs_interval in enumerate(vertical_marks):
+        start = obs_interval.start_time
+        end = obs_interval.end_time
+
+        # Add padding, but keep within dataframe bounds
+        min_gameloop = max(dataframe["gameloop"].min(), start - zoom_padding)
+        max_gameloop = min(dataframe["gameloop"].max(), end + zoom_padding)
+
+        interval_df = dataframe[
+            (dataframe["gameloop"] >= min_gameloop)
+            & (dataframe["gameloop"] <= max_gameloop)
+        ]
+
+        plt.figure()
+        for col in dataframe.columns:
+            if col in bypass_columns:
+                continue
+            plt.plot(interval_df["gameloop"], interval_df[col], label=col)
+
+        plt.axvline(
+            x=start,
+            color="green",
+            linestyle="--",
+            alpha=0.7,
+            label="combat start",
+        )
+        plt.axvline(
+            x=end,
+            color="red",
+            linestyle="--",
+            alpha=0.7,
+            label="combat end",
+        )
+
+        plt.xlabel("gameloop")
+        plt.ylabel("value")
+        plt.legend()
+        plt.title(f"Zoomed Feature Values: Interval {i + 1} ({start}-{end})")
+        plt.savefig(
+            f"{plot_dir}/{plot_filename.replace('.pdf', f'_interval_{i + 1}.pdf')}",
+            dpi=300,
+        )
+        plt.close()
 
 
 def combine_signals(dataframe: pd.DataFrame) -> pd.DataFrame:
@@ -307,7 +360,9 @@ def detect_combat_intervals(
     min_distance_gameloop: int = 1100,
     damage_start_threshold: int = 100,
     damage_stop_threshold: int = 100,
-    plot: bool = False,
+    plot: bool = True,
+    plot_dir: Path = PLOT_DIR,
+    plot_filename: str = "detection.pdf",
 ) -> List[obs_collection_pb.ObservationInterval]:
     """
     Deals with combining signals and detecting combat.
@@ -360,6 +415,8 @@ def detect_combat_intervals(
                 "player2_killed_minerals_army",
                 "player2_killed_vespene_army",
             },
+            plot_dir=plot_dir,
+            plot_filename=plot_filename,
         )
 
     return fight_intervals
@@ -386,7 +443,12 @@ def detect_combat(detect_combat_args: FileDetectCombatArgs) -> FileDetectCombatR
     # combat_detector = CombatDetector()
     game_feature_dict = get_game_features(proto_obs=proto_obs)
 
-    combat_intervals = detect_combat_intervals(game_feature_dict=game_feature_dict)
+    # Detect and plot combat intevals:
+    plot_filename = detect_combat_args.filepath.stem + ".pdf"
+    combat_intervals = detect_combat_intervals(
+        game_feature_dict=game_feature_dict,
+        plot_filename=plot_filename,
+    )
 
     replay_filepath = Path(proto_obs.replay_path).resolve()
     result = FileDetectCombatResult(
