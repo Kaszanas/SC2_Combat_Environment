@@ -15,6 +15,7 @@ from sc2_combat_simulator.function_results.player_units_map_state import (
 
 
 from sc2_combat_simulator.env.sc2_combat_env import CombatSC2Env
+from sc2_combat_simulator.settings import REPLAY_DIR
 
 
 @dataclass
@@ -93,14 +94,18 @@ def sc2_combat_simulator(combat_detection_dir: Path):
         combat_intervals_observations = load_observed_replay(
             input_filepath=combat_interval_file,
         )
+
+        map_name = combat_intervals_observations.map_hash
+        battle_net_map = combat_intervals_observations.battle_net_map
+
         for interval in combat_intervals_observations.observation_intervals:
             player_units_map_state = get_all_units(observation_interval=interval)
             only_first_interval_state = player_units_map_state[0]
             # Reproduce the combats in the environment:
             # Run the experiments with reinforcement learning or other control algos:
             CombatSC2Env(
-                map_name="",
-                battle_net_map=True,
+                map_name=map_name,
+                battle_net_map=battle_net_map,
                 players=None,
                 agent_interface_format=None,
                 discount=1.0,
@@ -109,7 +114,7 @@ def sc2_combat_simulator(combat_detection_dir: Path):
                 step_mul=1,
                 realtime=False,
                 save_replay_episodes=0,
-                replay_dir=None,
+                replay_dir=REPLAY_DIR,
                 replay_prefix=None,
                 game_steps_per_episode=None,
                 score_index=None,
