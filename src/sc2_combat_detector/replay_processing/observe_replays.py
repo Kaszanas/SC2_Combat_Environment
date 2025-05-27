@@ -13,6 +13,9 @@ from sc2_combat_detector.function_arguments.thread_observe_replay_args import (
     ThreadObserveReplayArgs,
 )
 
+from sc2_combat_detector.function_results.get_replay_map_hash_result import (
+    GetReplayMapHashResult,
+)
 from sc2_combat_detector.proto import observation_collection_pb2 as obs_collection_pb
 from sc2_combat_detector.replay_processing.stream_observations import (
     run_observation_stream,
@@ -23,7 +26,7 @@ import bisect
 import sc2reader
 
 
-def get_replay_map_hash(replay_path: Path) -> str:
+def get_replay_map_information(replay_path: Path) -> str:
     # Read replay with sc2reader to get the map hash:
 
     # NOTE: Cannot use the sc2_replay.Replay from pysc2 because it cannot
@@ -31,7 +34,16 @@ def get_replay_map_hash(replay_path: Path) -> str:
     replay = sc2reader.load_replay(str(replay_path), load_level=1)
     map_hash = replay.map_hash
 
-    return map_hash
+    release_string = replay.release_string
+    split_release_string = release_string.split(".")
+    game_version = ".".join(split_release_string[:3])
+
+    result = GetReplayMapHashResult(
+        map_hash=map_hash,
+        game_version=game_version,
+    )
+
+    return result
 
 
 def gameloop_within_interval(
@@ -128,12 +140,13 @@ def observe_replay(
             observe_replay_args.combats_to_observe.get_gameloops_to_observe()
         )
 
-    map_hash = get_replay_map_hash(
+    map_information = get_replay_map_information(
         replay_path=observe_replay_args.replay_path,
     )
     all_observations = obs_collection_pb.GameObservationCollection()
     all_observations.replay_path = str(observe_replay_args.replay_path)
-    all_observations.map_hash = map_hash
+    all_observations.map_hash = map_information.map_hash
+    all_observations.game_version = map_information.game_version
 
     # Special case, no combat detection is required so the interval spans the entire game:
     entire_game_observation_interval = None
