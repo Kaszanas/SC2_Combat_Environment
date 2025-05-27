@@ -17,3 +17,6 @@ protoc-*/
 *.txtpb
 *.len
 *.binpb
+
+
+*.pdf
