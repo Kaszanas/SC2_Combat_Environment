@@ -213,9 +213,11 @@ class CombatSC2Env(environment.Base):
         min_players = min(m.players for m in self._maps)
         max_players = max(m.players for m in self._maps)
         if self._battle_net_map:
-            for m in self._maps:
-                if not m.battle_net:
-                    raise ValueError("%s isn't known on Battle.net" % m.name)
+            for available_map in self._maps:
+                if not available_map.battle_net:
+                    raise ValueError(
+                        "%s isn't known on Battle.net" % available_map.name
+                    )
 
         if max_players == 1:
             if self._num_agents != 1:
@@ -471,6 +473,9 @@ class CombatSC2Env(environment.Base):
             for info in self._game_info[0].player_info
             if info.type != sc_pb.Observer
         }
+
+        for unit in []:
+            pass
 
     @property
     def map_name(self):
