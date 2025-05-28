@@ -58,10 +58,16 @@ class LogLevel(str, enum.Enum):
     help="Path to the output directory which will hold full observations for the detected combats. This output will be used to re-create the environment for the agents.",
 )
 @click.option(
-    "--obserVe_combat/--no_observe_combat",
+    "--observe_combat/--no_observe_combat",
     is_flag=True,
     default=True,
     help="If set, the combat detection will be performed and the combat observations will be saved. If set to no_observe_combat, only the detection will be performed without saving the combat observations.",
+)
+@click.option(
+    "--n_threads",
+    type=int,
+    default=2,
+    help="Number of threads to use for running StarCraft 2 instances in parallel. Default is 4.",
 )
 @click.option(
     "--log",
@@ -74,6 +80,7 @@ def main(
     output_directory: Path,
     combat_output_directory: Path,
     observe_combat: bool,
+    n_threads: int,
     log: LogLevel,
 ):
     # Run PySC2 parser and then load the data and perform combat detection:
@@ -99,6 +106,7 @@ def main(
         output_directory=output_directory,
         combat_output_directory=combat_output_directory,
         observe_combat=observe_combat,
+        n_threads=n_threads,
     )
 
 
