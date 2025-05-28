@@ -140,9 +140,15 @@ def observe_replay(
             observe_replay_args.combats_to_observe.get_gameloops_to_observe()
         )
 
-    map_information = get_replay_map_information(
-        replay_path=observe_replay_args.replay_path,
-    )
+    try:
+        map_information = get_replay_map_information(
+            replay_path=observe_replay_args.replay_path,
+        )
+    except Exception as e:
+        logging.error(
+            f"Failed to get map information for replay {str(observe_replay_args.replay_path)}: {e}"
+        )
+        return
     all_observations = obs_collection_pb.GameObservationCollection()
     all_observations.replay_path = str(observe_replay_args.replay_path)
     all_observations.map_hash = map_information.map_hash
@@ -167,35 +173,41 @@ def observe_replay(
         start_times = [entire_game_observation_interval.start_time]
 
     combat_intervals_list = observe_replay_args.combats_to_observe.combat_intervals
-    for observation in run_observation_stream(
-        replay_path=observe_replay_args.replay_path,
-        render=observe_replay_args.render,
-        raw=observe_replay_args.raw,
-        feature_screen_size=observe_replay_args.feature_screen_size,
-        feature_minimap_size=observe_replay_args.feature_minimap_size,
-        feature_camera_width=observe_replay_args.feature_camera_width,
-        rgb_minimap_size=observe_replay_args.rgb_minimap_size,
-        rgb_screen_size=observe_replay_args.rgb_screen_size,
-        no_skips=observe_replay_args.no_skips,
-        gameloops_to_observe=gameloops_to_observe,
-    ):
-        obs_gameloop = observation.game_loop
-        # Getting the index of the interval via bisect assumes that the
-        # intervals list is sorted and non-overlapping:
-        index = bisect.bisect_right(start_times, obs_gameloop) - 1
-        curr_interval_start_time = combat_intervals_list[index].start_time
-        curr_interval_end_time = combat_intervals_list[index].end_time
-
-        # If gameloop of the observation is equal or higher than the start time
-        # and the gameloop is less or equal the end time of the interval,
-        # you can keep appending the observations to the currently initialized interval.
-        if index >= 0 and gameloop_within_interval(
-            start_time=curr_interval_start_time,
-            end_time=curr_interval_end_time,
-            game_loop=obs_gameloop,
+    try:
+        for observation in run_observation_stream(
+            replay_path=observe_replay_args.replay_path,
+            render=observe_replay_args.render,
+            raw=observe_replay_args.raw,
+            feature_screen_size=observe_replay_args.feature_screen_size,
+            feature_minimap_size=observe_replay_args.feature_minimap_size,
+            feature_camera_width=observe_replay_args.feature_camera_width,
+            rgb_minimap_size=observe_replay_args.rgb_minimap_size,
+            rgb_screen_size=observe_replay_args.rgb_screen_size,
+            no_skips=observe_replay_args.no_skips,
+            gameloops_to_observe=gameloops_to_observe,
         ):
-            observation_interval = combat_intervals_list[index]
-            observation_interval.observations.append(observation)
+            obs_gameloop = observation.game_loop
+            # Getting the index of the interval via bisect assumes that the
+            # intervals list is sorted and non-overlapping:
+            index = bisect.bisect_right(start_times, obs_gameloop) - 1
+            curr_interval_start_time = combat_intervals_list[index].start_time
+            curr_interval_end_time = combat_intervals_list[index].end_time
+
+            # If gameloop of the observation is equal or higher than the start time
+            # and the gameloop is less or equal the end time of the interval,
+            # you can keep appending the observations to the currently initialized interval.
+            if index >= 0 and gameloop_within_interval(
+                start_time=curr_interval_start_time,
+                end_time=curr_interval_end_time,
+                game_loop=obs_gameloop,
+            ):
+                observation_interval = combat_intervals_list[index]
+                observation_interval.observations.append(observation)
+    except Exception as e:
+        logging.error(
+            f"Failed to observe replay {str(observe_replay_args.replay_path)}: {e}"
+        )
+        return
 
     # This is a special case for getting the final gameloop if no combat intervals are requested:
     # TODO fill in the gameloop of interval end:

@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Any, Callable, Iterable, List, Sequence
 from pysc2_evolved.lib.replay import sc2_replay
@@ -230,81 +231,88 @@ def run_observation_stream(
     no_skips: bool,
     gameloops_to_observe: List[int],
 ):
-    interface = game_interface_setup(
-        render=render,
-        raw=raw,
-        feature_screen_size=feature_screen_size,
-        feature_minimap_size=feature_minimap_size,
-        feature_camera_width=feature_camera_width,
-        rgb_screen_size=rgb_screen_size,
-        rgb_minimap_size=rgb_minimap_size,
-    )
+    try:
+        interface = game_interface_setup(
+            render=render,
+            raw=raw,
+            feature_screen_size=feature_screen_size,
+            feature_minimap_size=feature_minimap_size,
+            feature_camera_width=feature_camera_width,
+            rgb_screen_size=rgb_screen_size,
+            rgb_minimap_size=rgb_minimap_size,
+        )
 
-    run_config = run_configs.get()
-    replay_data = run_config.replay_data(replay_path=str(replay_path))
+        run_config = run_configs.get()
+        replay_data = run_config.replay_data(replay_path=str(replay_path))
 
-    # Read the replay first to get the player IDs before the game engine
-    # is initiated, this will save some time later:
-    replay_file = sc2_replay.SC2Replay(replay_data=replay_data)
-    # Read the player IDs first so the replay can be started from some perspective:
-    user_id_to_player_info = sc2_replay_utils.get_active_players(replay=replay_file)
-    player_id_to_player_info = sc2_replay_utils.get_player_ids(
-        user_id_to_object_mapping=user_id_to_player_info
-    )
-    player_ids: List[int] = list(player_id_to_player_info.keys())
-    if len(player_ids) != 2:
-        raise ValueError("We only support replays with two active players!")
-    player_one_id = player_ids[0]
-    player_two_id = player_ids[1]
+        # Read the replay first to get the player IDs before the game engine
+        # is initiated, this will save some time later:
+        replay_file = sc2_replay.SC2Replay(replay_data=replay_data)
+        # Read the player IDs first so the replay can be started from some perspective:
+        user_id_to_player_info = sc2_replay_utils.get_active_players(replay=replay_file)
+        player_id_to_player_info = sc2_replay_utils.get_player_ids(
+            user_id_to_object_mapping=user_id_to_player_info
+        )
+        player_ids: List[int] = list(player_id_to_player_info.keys())
+        if len(player_ids) != 2:
+            raise ValueError("We only support replays with two active players!")
+        player_one_id = player_ids[0]
+        player_two_id = player_ids[1]
 
-    with ReplayObservationStream(
-        interface_options=interface,
-        step_mul=1,
-        disable_fog=True,
-        add_opponent_observations=True,
-    ) as replay_observation_stream:
-        # This decides if the observations should only be acquired for
-        # when the players make their actions:
-        def _accept_step_fn(step):
-            return True
-
-        accept_step_function = _accept_step_fn
-
-        step_sequence = None
-        if gameloops_to_observe:
-            step_sequence = get_step_sequence(action_skips=gameloops_to_observe)
-
+        with ReplayObservationStream(
+            interface_options=interface,
+            step_mul=1,
+            disable_fog=True,
+            add_opponent_observations=True,
+        ) as replay_observation_stream:
+            # This decides if the observations should only be acquired for
+            # when the players make their actions:
             def _accept_step_fn(step):
-                return step in gameloops_to_observe
+                return True
 
             accept_step_function = _accept_step_fn
 
-        if not no_skips:
-            # Get the loops to which the controller should skip to get only the
-            # relevant observations around the player making actions:
-            action_skips = sc2_replay_utils.raw_action_skips(replay=replay_file)
-            player_action_skips = action_skips[player_one_id]
-            step_sequence = get_step_sequence(action_skips=player_action_skips)
+            step_sequence = None
+            if gameloops_to_observe:
+                step_sequence = get_step_sequence(action_skips=gameloops_to_observe)
 
-            def _accept_step_fn(step):
-                return step in player_action_skips
+                def _accept_step_fn(step):
+                    return step in gameloops_to_observe
 
-            accept_step_function = _accept_step_fn
+                accept_step_function = _accept_step_fn
 
-        # Start replay at the end.
-        replay_observation_stream.start_replay_from_data(
-            replay_data=replay_data,
-            player_id=player_one_id,
-            opponent_id=player_two_id,
+            if not no_skips:
+                # Get the loops to which the controller should skip to get only the
+                # relevant observations around the player making actions:
+                action_skips = sc2_replay_utils.raw_action_skips(replay=replay_file)
+                player_action_skips = action_skips[player_one_id]
+                step_sequence = get_step_sequence(action_skips=player_action_skips)
+
+                def _accept_step_fn(step):
+                    return step in player_action_skips
+
+                accept_step_function = _accept_step_fn
+
+            # Start replay at the end.
+            replay_observation_stream.start_replay_from_data(
+                replay_data=replay_data,
+                player_id=player_one_id,
+                opponent_id=player_two_id,
+            )
+            observations_iterator = replay_observation_stream.observations(
+                step_sequence=step_sequence
+            )
+
+            yield from observation_consumer(
+                observations_iterator=observations_iterator,
+                accept_step_fn=accept_step_function,
+            )
+    except Exception as e:
+        logging.error(
+            f"Error while processing replay {replay_path}: {e}",
+            exc_info=True,
         )
-        observations_iterator = replay_observation_stream.observations(
-            step_sequence=step_sequence
-        )
-
-        yield from observation_consumer(
-            observations_iterator=observations_iterator,
-            accept_step_fn=accept_step_function,
-        )
+        raise e
 
 
 def observation_consumer(
