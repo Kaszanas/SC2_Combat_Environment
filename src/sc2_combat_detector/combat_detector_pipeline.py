@@ -11,6 +11,7 @@ def combat_detector_pipeline(
     output_directory: Path,
     combat_output_directory: Path,
     observe_combat: bool,
+    n_threads: int,
 ):
     # The observation function does not return anything just because all of the
     # replay observations for a major dataset won't fit into memory.
@@ -18,6 +19,7 @@ def combat_detector_pipeline(
     observe_replays_subfolders(
         replaypack_directory=replaypack_directory,
         output_directory=output_directory,
+        n_threads=n_threads,
     )
 
     # The input directory for combat detector is the output directory for the
