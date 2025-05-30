@@ -22,6 +22,8 @@ import time
 from typing import Sequence
 
 from s2clientprotocol import sc2api_pb2 as sc_pb
+from s2clientprotocol import common_pb2 as sc_common
+from s2clientprotocol import debug_pb2 as d_pb
 
 from pysc2_evolved import maps, run_configs
 from pysc2_evolved.env import enums, environment
@@ -35,7 +37,11 @@ from pysc2_evolved.lib import (
     stopwatch,
 )
 
-from sc2_combat_simulator.combat_simulator import PlayerUnitsMapState
+from pysc2_evolved.env.sc2_env import Agent, Bot
+
+from sc2_combat_simulator.function_results.player_units_map_state import (
+    PlayerUnitsMapState,
+)
 
 sw = stopwatch.sw
 
@@ -67,20 +73,20 @@ def get_default(a, b):
     return b if a is None else a
 
 
-class Agent(collections.namedtuple("Agent", ["race", "name"])):
-    """Define an Agent. It can have a single race or a list of races."""
+# class Agent(collections.namedtuple("Agent", ["race", "name"])):
+#     """Define an Agent. It can have a single race or a list of races."""
 
-    def __new__(cls, race, name=None):
-        return super(Agent, cls).__new__(cls, to_list(race), name or "<unknown>")
+#     def __new__(cls, race, name=None):
+#         return super(Agent, cls).__new__(cls, to_list(race), name or "<unknown>")
 
 
-class Bot(collections.namedtuple("Bot", ["race", "difficulty", "build"])):
-    """Define a Bot. It can have a single or list of races or builds."""
+# class Bot(collections.namedtuple("Bot", ["race", "difficulty", "build"])):
+#     """Define a Bot. It can have a single or list of races or builds."""
 
-    def __new__(cls, race, difficulty, build=None):
-        return super(Bot, cls).__new__(
-            cls, to_list(race), difficulty, to_list(build or BotBuild.random)
-        )
+#     def __new__(cls, race, difficulty, build=None):
+#         return super(Bot, cls).__new__(
+#             cls, to_list(race), difficulty, to_list(build or BotBuild.random)
+#         )
 
 
 _DelayedAction = collections.namedtuple("DelayedAction", ["game_loop", "action"])
@@ -275,6 +281,8 @@ class CombatSC2Env(environment.Base):
             for i, interface_format in enumerate(agent_interface_format)
         ]
 
+        self._player_units_map_state = player_units_map_state
+
         self._launch_game()
         self._create_join()
 
@@ -355,7 +363,8 @@ class CombatSC2Env(environment.Base):
         # Actually launch the game processes.
         self._sc2_procs = [
             self._run_config.start(
-                extra_ports=self._ports, want_rgb=interface.HasField("render")
+                # extra_ports=self._ports,
+                want_rgb=interface.HasField("render"),
             )
             for interface in self._interface_options
         ]
@@ -474,8 +483,83 @@ class CombatSC2Env(environment.Base):
             if info.type != sc_pb.Observer
         }
 
-        for unit in []:
-            pass
+        debug_command = []
+        for unit in self._player_units_map_state.player1_units:
+            # Creating the units for player 1:
+            unit_type = unit.unit_type
+            owner = 1
+            init_pos = unit.pos
+
+            pos_2d = sc_common.Point2D(x=init_pos.x, y=init_pos.y)
+
+            debug_create_unit = d_pb.DebugCreateUnit(
+                unit_type=unit_type,
+                owner=owner,
+                pos=pos_2d,
+                quantity=1,
+            )
+
+            command = d_pb.DebugCommand(create_unit=debug_create_unit)
+            debug_command.append(command)
+
+        for unit in self._player_units_map_state.player2_units:
+            # Creating the units for player 2:
+            unit_type = unit.unit_type
+            owner = 2
+            init_pos = unit.pos
+
+            pos_2d = sc_common.Point2D(x=init_pos.x, y=init_pos.y)
+
+            debug_create_unit = d_pb.DebugCreateUnit(
+                unit_type=unit_type,
+                owner=owner,
+                pos=pos_2d,
+                quantity=1,
+            )
+
+            command = d_pb.DebugCommand(create_unit=debug_create_unit)
+            debug_command.append(command)
+
+        self._controllers[0].debug(debug_command)
+
+        # REVIEW: Example spawning of units from SMAC v2
+        # if not self.random_start:
+        #     if ally:
+        #         init_pos = [sc_common.Point2D(x=8, y=16)] * self.n_agents
+        #     else:
+        #         init_pos = [sc_common.Point2D(x=24, y=16)] * self.n_enemies
+        # else:
+        #     if ally:
+        #         init_pos = [
+        #             sc_common.Point2D(
+        #                 x=self.ally_start_positions[i][0],
+        #                 y=self.ally_start_positions[i][1],
+        #             )
+        #             for i in range(self.ally_start_positions.shape[0])
+        #         ]
+        #     else:
+        #         init_pos = [
+        #             sc_common.Point2D(
+        #                 x=self.enemy_start_positions[i][0],
+        #                 y=self.enemy_start_positions[i][1],
+        #             )
+        #             for i in range(self.enemy_start_positions.shape[0])
+        #         ]
+        # debug_command = []
+        # for unit_id, unit in enumerate(team):
+        #     unit_type = self._convert_unit_name_to_unit_type(unit, ally=ally)
+        #     owner = 1 if ally else 2
+        #     debug_command.append(
+        #         d_pb.DebugCommand(
+        #             create_unit=d_pb.DebugCreateUnit(
+        #                 unit_type=unit_type,
+        #                 owner=owner,
+        #                 pos=init_pos[unit_id],
+        #                 quantity=1,
+        #             )
+        #         )
+        #     )
+        # self._controller.debug(debug_command)
 
     @property
     def map_name(self):
