@@ -33,4 +33,7 @@ def register_custom_map(
             "battle_net": battle_net,
         },
     )
-    return map_cls
+
+    globals()[class_name] = map_cls
+
+    return class_name, map_cls
