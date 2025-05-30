@@ -70,6 +70,12 @@ class LogLevel(str, enum.Enum):
     help="Number of threads to use for running StarCraft 2 instances in parallel. Default is 4.",
 )
 @click.option(
+    "--debug/--no_debug",
+    is_flag=True,
+    default=False,
+    help="If set, the debug mode will be enabled. This forces the proto messages to be trimmed to only one observation per interval.",
+)
+@click.option(
     "--log",
     type=click.Choice(list(LogLevel), case_sensitive=False),
     default=LogLevel.WARNING,
@@ -81,6 +87,7 @@ def main(
     combat_output_directory: Path,
     observe_combat: bool,
     n_threads: int,
+    debug: bool,
     log: LogLevel,
 ):
     # Run PySC2 parser and then load the data and perform combat detection:
@@ -107,6 +114,7 @@ def main(
         combat_output_directory=combat_output_directory,
         observe_combat=observe_combat,
         n_threads=n_threads,
+        debug_mode=debug,
     )
 
 

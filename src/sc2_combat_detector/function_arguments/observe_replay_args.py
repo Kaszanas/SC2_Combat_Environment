@@ -23,9 +23,12 @@ class ObserveReplayArgs:
     feature_camera_width: int = 24
     rgb_screen_size: str = "640,480"
     rgb_minimap_size: str = "16"
+    debug_mode: bool = False
 
     @staticmethod
-    def get_initial_processing_args(replay_path: Path) -> ObserveReplayArgs:
+    def get_initial_processing_args(
+        replay_path: Path,
+    ) -> ObserveReplayArgs:
         return ObserveReplayArgs(
             replay_path=replay_path,
             render=False,
@@ -37,12 +40,14 @@ class ObserveReplayArgs:
             rgb_minimap_size="128",
             no_skips=False,
             combats_to_observe=None,
+            debug_mode=False,
         )
 
     @staticmethod
     def get_combat_processing_args(
         replay_path: Path,
         combats_to_observe: List[obs_collection_pb.ObservationInterval],
+        debug_mode: bool = False,
     ) -> ObserveReplayArgs:
         return ObserveReplayArgs(
             replay_path=replay_path,
@@ -55,4 +60,5 @@ class ObserveReplayArgs:
             rgb_minimap_size="128",
             no_skips=True,
             combats_to_observe=combats_to_observe,
+            debug_mode=debug_mode,
         )

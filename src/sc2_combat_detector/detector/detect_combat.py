@@ -278,10 +278,14 @@ def combine_signals(dataframe: pd.DataFrame) -> pd.DataFrame:
     result_dataframe = dataframe.copy(deep=True)
 
     result_dataframe["total_resources_killed"] = (
-        result_dataframe["player1_killed_minerals_army"].diff(55).fillna(0)
-        + result_dataframe["player1_killed_vespene_army"].diff(55).fillna(0)
-        + result_dataframe["player2_killed_minerals_army"].diff(55).fillna(0)
-        + result_dataframe["player2_killed_vespene_army"].diff(55).fillna(0)
+        result_dataframe["player1_killed_minerals_army"]
+        + result_dataframe["player1_killed_vespene_army"]
+        + result_dataframe["player2_killed_minerals_army"]
+        + result_dataframe["player2_killed_vespene_army"]
+    )
+
+    result_dataframe["total_resources_killed_delta"] = (
+        result_dataframe["total_resources_killed"].diff(55).fillna(0)
     )
 
     result_dataframe["total_damage_dealt"] = (
@@ -392,7 +396,7 @@ def detect_combat_intervals(
     combined_dataframe = combine_signals(dataframe=dataframe)
 
     resource_peaks, _ = find_peaks(
-        combined_dataframe["total_resources_killed"],
+        combined_dataframe["total_resources_killed_delta"],
         height=min_peak_height,
         distance=min_distance_gameloop,
     )
@@ -490,7 +494,10 @@ def multithreading_detect_combat(
         detect_combat_args = FileDetectCombatArgs(filepath=file)
         all_detect_combat_args.append(detect_combat_args)
 
-    with ThreadPool(processes=n_threads) as thread_pool:
+    # TODO: Plot separately:
+    # Process pool cannot pickle the results to communicate.
+    # ThreadPool cannot do plots because it is not thread safe, this will have to be fixed later
+    with ThreadPool(processes=1) as thread_pool:
         combat_interval_results = thread_pool.map(detect_combat, all_detect_combat_args)
 
     return combat_interval_results

@@ -26,6 +26,36 @@ import bisect
 import sc2reader
 
 
+def debug_gameloops_to_observe(
+    combat_intervals_list: List[obs_collection_pb.ObservationInterval],
+) -> List[int]:
+    """
+    Implements a special case for debugging purposes, for each of the detected intervals
+    this returns a single gameloop that should be observed. This makes protobuf files
+    saved to disk much smaller and easier to work with when debugging re-simulation.
+
+    Parameters
+    ----------
+    combat_intervals_list : List[obs_collection_pb.ObservationInterval]
+        List of combat intervals that were detected in the replay.
+
+    Returns
+    -------
+    List[int]
+        List of gameloops to observe, in this case it will be a single gameloop
+    """
+
+    if not combat_intervals_list:
+        return [1]
+
+    gameloops_to_observe = []
+    for combat_interval in combat_intervals_list:
+        combat_start = combat_interval.start_time
+        gameloops_to_observe.append(combat_start)
+
+    return gameloops_to_observe
+
+
 def get_replay_map_information(replay_path: Path) -> str:
     # Read replay with sc2reader to get the map hash:
 
@@ -135,9 +165,35 @@ def observe_replay(
     # This will return an empty list if there were no registered combats to observe:
     gameloops_to_observe = None
     start_times = None
+    entire_game_observation_interval = None
     if observe_replay_args.combats_to_observe:
         start_times, gameloops_to_observe = (
             observe_replay_args.combats_to_observe.get_gameloops_to_observe()
+        )
+    else:
+        # Special case, no combat detection is required so the interval spans the entire game:
+        entire_game_observation_interval = obs_collection_pb.ObservationInterval(
+            start_time=0,  # start_time for the case of entire game interval is just the first gameloop!
+            end_time=-1,  # special case, this is used in gameloop_within_interval function
+        )
+
+        # REVIEW: Mutating arguments may not be the best idea here!!!!!!
+        # The entire game observation interval needs to be added so that the
+        # later bisecting approach can append the observations in the right way:
+        observe_replay_args.combats_to_observe = FileDetectCombatResult(
+            replay_filepath=observe_replay_args.replay_path,
+            combat_intervals=[entire_game_observation_interval],
+        )
+
+        start_times = [entire_game_observation_interval.start_time]
+
+    # Debug mode means that we only want to get one observation per interval,
+    # only the first observation will be saved, and consequently recreated via
+    # the sc2_combat_simulator.
+    combat_intervals_list = observe_replay_args.combats_to_observe.combat_intervals
+    if observe_replay_args.debug_mode:
+        gameloops_to_observe = debug_gameloops_to_observe(
+            combat_intervals_list=combat_intervals_list
         )
 
     try:
@@ -154,25 +210,6 @@ def observe_replay(
     all_observations.map_hash = map_information.map_hash
     all_observations.game_version = map_information.game_version
 
-    # Special case, no combat detection is required so the interval spans the entire game:
-    entire_game_observation_interval = None
-    if not observe_replay_args.combats_to_observe:
-        entire_game_observation_interval = obs_collection_pb.ObservationInterval(
-            start_time=0,  # start_time for the case of entire game interval is just the first gameloop!
-            end_time=-1,  # special case, this is used in gameloop_within_interval function
-        )
-
-        # REVIEW: Mutating arguments may not be the best idea here!!!!!!
-        # The entire game observation interval needs to be added so that the
-        # later bisecting approach can append the observations in the right way:
-        observe_replay_args.combats_to_observe = FileDetectCombatResult(
-            replay_filepath=observe_replay_args.replay_path,
-            combat_intervals=[entire_game_observation_interval],
-        )
-
-        start_times = [entire_game_observation_interval.start_time]
-
-    combat_intervals_list = observe_replay_args.combats_to_observe.combat_intervals
     try:
         for observation in run_observation_stream(
             replay_path=observe_replay_args.replay_path,
@@ -202,6 +239,8 @@ def observe_replay(
                 game_loop=obs_gameloop,
             ):
                 observation_interval = combat_intervals_list[index]
+                if observe_replay_args.debug_mode:
+                    observation_interval.end_time = obs_gameloop
                 observation_interval.observations.append(observation)
     except Exception as e:
         logging.error(
@@ -222,7 +261,7 @@ def observe_replay(
     # REVIEW: It seems that one observation is missing from the original
     # REVIEW: requested gameloops to observe, this is not a major issue,
     # REVIEW: but rather a weird inconvenience, this ought to be fixed:
-    if gameloops_to_observe:
+    if gameloops_to_observe and not observe_replay_args.debug_mode:
         verify_observation_lengths(
             all_observations=all_observations,
             gameloops_to_observe=gameloops_to_observe,
@@ -347,6 +386,7 @@ def re_observe_replay_get_combat_snapshots(
     detected_combats: List[FileDetectCombatResult],
     force_processing: bool = False,
     n_threads: int = 6,
+    debug_mode: bool = False,
 ):
     """
     Issues re-observation tasks based on the detected interesting intervals.
@@ -377,6 +417,7 @@ def re_observe_replay_get_combat_snapshots(
         observe_replay_args = ObserveReplayArgs.get_combat_processing_args(
             replay_path=detection_result.replay_filepath,
             combats_to_observe=detection_result,
+            debug_mode=debug_mode,
         )
 
         thread_args = ThreadObserveReplayArgs(
